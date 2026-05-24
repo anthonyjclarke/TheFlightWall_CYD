@@ -8,8 +8,8 @@ Responsibilities:
 Inputs: centerLat, centerLon, radiusKm, min/max bearing; APIConfiguration creds/URLs.
 Outputs: Populates outStateVectors with filtered results (distance_km, bearing_deg set).
 */
-#include "adapters/OpenSkyFetcher.h"
-#include "config/RuntimeConfig.h"
+#include "OpenSkyFetcher.h"
+#include "RuntimeConfig.h"
 #include "debug.h"
 
 static String urlEncodeForm(const String &value)

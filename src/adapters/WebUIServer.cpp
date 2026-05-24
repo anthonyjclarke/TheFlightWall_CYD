@@ -1,7 +1,7 @@
-#include "adapters/WebUIServer.h"
+#include "WebUIServer.h"
 
 #include <ArduinoJson.h>
-#include "config/RuntimeConfig.h"
+#include "RuntimeConfig.h"
 #include "debug.h"
 
 // ── Embedded HTML page ────────────────────────────────────────────────────────

@@ -1,8 +1,9 @@
 #pragma once
 
 #include <stdint.h>
+#include <time.h>
 #include <vector>
-#include "interfaces/BaseDisplay.h"
+#include "BaseDisplay.h"
 
 class TFT_eSPI;
 
@@ -30,14 +31,22 @@ private:
     String        _lastRenderedKey;
 
     void drawFlightCard(const FlightInfo &f, size_t idx, size_t total);
+    void drawProgressBar(const FlightInfo &f, time_t now);
     String renderKey(const FlightInfo &f) const;
     void resetRenderState();
 
-    // Helpers
+    // Resolve helpers
     String resolveAirline(const FlightInfo &f) const;
     String resolveCallsign(const FlightInfo &f) const;
     String resolveAircraft(const FlightInfo &f) const;
+    String resolveIataOrIcao(const AirportInfo &ap) const;
+    String resolveCityOrCode(const AirportInfo &ap) const;
     String resolveLiveSummary(const FlightInfo &f) const;
     String resolveMotionSummary(const FlightInfo &f) const;
+
+    // Status line builders
+    String buildDepartedLine(const FlightInfo &f, time_t now) const;
+    String buildArrivingLine(const FlightInfo &f, time_t now) const;
+
     String fitText(const String &text, int maxWidth);
 };

@@ -9,4 +9,9 @@ namespace TimingConfiguration
 
     // How long each flight card stays on screen before cycling to the next
     static constexpr uint32_t DISPLAY_CYCLE_SECONDS = 3;
+
+    // Maximum AeroAPI calls per fetch cycle. AeroAPI free tier enforces ~1 req/s;
+    // calling every nearby callsign triggers HTTP 429. State vectors are already
+    // ordered by distance so this naturally limits to the closest aircraft.
+    static constexpr size_t MAX_AEROAPI_CALLS_PER_CYCLE = 5;
 }

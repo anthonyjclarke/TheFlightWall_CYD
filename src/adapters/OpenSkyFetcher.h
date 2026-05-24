@@ -3,10 +3,10 @@
 #include <Arduino.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
-#include "interfaces/BaseStateVectorFetcher.h"
-#include "utils/GeoUtils.h"
-#include "config/APIConfiguration.h"
-#include "config/UserConfiguration.h"
+#include "BaseStateVectorFetcher.h"
+#include "GeoUtils.h"
+#include "APIConfiguration.h"
+#include "UserConfiguration.h"
 
 class OpenSkyFetcher : public BaseStateVectorFetcher
 {

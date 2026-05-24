@@ -1,10 +1,10 @@
-#include "config/RuntimeConfig.h"
+#include "RuntimeConfig.h"
 
 #include <Preferences.h>
-#include "config/UserConfiguration.h"
-#include "config/TimingConfiguration.h"
-#include "config/HardwareConfiguration.h"
-#include "config/APIConfiguration.h"
+#include "UserConfiguration.h"
+#include "TimingConfiguration.h"
+#include "HardwareConfiguration.h"
+#include "APIConfiguration.h"
 #include "debug.h"
 
 // NVS namespace (max 15 chars)

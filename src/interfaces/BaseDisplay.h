@@ -2,7 +2,7 @@
 
 #include <Arduino.h>
 #include <vector>
-#include "models/FlightInfo.h"
+#include "FlightInfo.h"
 
 class BaseDisplay
 {

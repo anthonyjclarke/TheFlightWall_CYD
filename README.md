@@ -15,8 +15,6 @@ PlatformIO firmware for the CYD (TFT) variant of TheFlightWall. The current root
 - Display behavior: cached flight list cycles independently of the network fetch interval
 - Live no-extra-cost metrics shown from OpenSky: distance, bearing, altitude/flight level, speed, heading, climb/descent, and ground state
 
-The legacy `NeoMatrixDisplay` adapter is retained for reference, but CYD builds explicitly exclude it.
-
 ---
 
 ## What it does
@@ -35,15 +33,17 @@ The legacy `NeoMatrixDisplay` adapter is retained for reference, but CYD builds 
 | Path | Role |
 |:-----|:-----|
 | `src/main.cpp` | Entry point — WiFiManager provisioning, millis-based fetch loop |
-| `core/FlightDataFetcher` | Orchestrates: state vectors → flight metadata → name enrichment |
-| `adapters/OpenSkyFetcher` | OpenSky OAuth2, bounding-box query, geo filter |
-| `adapters/AeroAPIFetcher` | AeroAPI `/flights/{ident}` — route, aircraft, operator |
-| `adapters/FlightWallFetcher` | CDN airline/aircraft display-name lookup |
-| `adapters/CYDDisplay` | TFT_eSPI flight card — header, route, live metrics, sub-info footer |
-| `adapters/NeoMatrixDisplay` | Original LED matrix renderer (legacy, retained for reference) |
-| `config/` | `UserConfiguration`, `APIConfiguration`, `TimingConfiguration`, `HardwareConfiguration` |
+| `src/core/FlightDataFetcher` | Orchestrates: state vectors → flight metadata → name enrichment |
+| `src/adapters/OpenSkyFetcher` | OpenSky OAuth2, bounding-box query, geo filter |
+| `src/adapters/AeroAPIFetcher` | AeroAPI `/flights/{ident}` — route, aircraft, operator |
+| `src/adapters/FlightWallFetcher` | CDN airline/aircraft display-name lookup |
+| `src/adapters/CYDDisplay` | TFT_eSPI flight card — callsign, route, status lines, progress bar |
+| `src/adapters/WebUIServer` | HTTP server (port 80) — runtime configuration WebUI |
+| `src/config/` | `UserConfiguration`, `APIConfiguration`, `TimingConfiguration`, `HardwareConfiguration`, `RuntimeConfig` |
+| `src/interfaces/` | `BaseDisplay`, `BaseFlightFetcher`, `BaseStateVectorFetcher` |
+| `src/models/` | `FlightInfo`, `StateVector`, `AirportInfo` |
+| `src/utils/GeoUtils.h` | Haversine distance and bearing calculations |
 | `include/debug.h` | Leveled macros: `DBG_ERROR` / `DBG_WARN` / `DBG_INFO` / `DBG_VERBOSE` |
-| `include/secrets.h.template` | Template for API credentials — copy to `secrets.h` (gitignored) |
 
 ---
 
@@ -61,7 +61,7 @@ Fill in `include/secrets.h`:
 #define SECRET_AEROAPI_KEY           "your-flightaware-aeroapi-key"
 ```
 
-Then set your location in `config/UserConfiguration.h`, select your environment in PlatformIO, and upload:
+Then set your location in `src/config/UserConfiguration.h`, select your environment in PlatformIO, and upload:
 
 - `cyd_320x240` — ESP32-2432S028R (ILI9341, standard CYD)
 - `cyd_480x320` — ESP32-3248S035R (ST7796, larger CYD)
@@ -72,26 +72,20 @@ On first boot the device opens an AP named **FlightWall-Setup** — connect from
 
 ## Display output
 
-Each enriched flight card displays:
+Each flight card is styled to match the commercial FlightWall product display. Layout (320×240):
 
-- Airline/operator name, or operator code when no friendly lookup exists
-- Card position, for example `3/11`
-- Origin and destination ICAO codes from AeroAPI
-- Live distance and cardinal direction from `CENTER_LAT` / `CENTER_LON`
-- Altitude or flight level from OpenSky barometric/geometric altitude
-- Ground speed, heading, and climb/descent indicator from OpenSky
-- Callsign and aircraft type/name
+| Zone | Content |
+|:-----|:--------|
+| Top bar | Large callsign on the left; card position (`3/11`) on the right |
+| Airline column (left ~118 px) | JPEG airline logo (cached in LittleFS) if available; airline name in brand color otherwise |
+| Route column (right) | IATA origin → destination in amber (`LAX → JFK`); ICAO fallback when IATA is absent |
+| Aircraft row | Aircraft type short name (e.g. `A321neo`) |
+| Status row | "Departed LAX 45 min ago" or "Arriving in 4h 30m" — shown once NTP sync is confirmed |
+| Progress bar | Green fill proportional to elapsed flight time; hidden until NTP sync |
 
-Example compact 320x240 card content:
+When AeroAPI enrichment is unavailable for a flight (rate-limited, no response, or API key absent), the card still displays using live ADS-B data only: callsign, altitude, speed, heading, distance, and bearing. Route and status lines are omitted for ADS-B-only cards.
 
-```text
-QantasLink        3/11
-YSSY  >  YSCB
-18km SW  7200ft  420km/h DN 084deg
-QLK1449                 Dash 8-400
-```
-
-The display cycle is independent of network fetching. If a fetch is slow, rate-limited, or returns no enriched flights, the display keeps cycling the last good flight list instead of freezing on the fetch result or blanking immediately.
+The display cycle is independent of network fetching. If a fetch is slow, rate-limited, or returns no results, the display keeps cycling the last good flight list rather than freezing or blanking.
 
 ---
 
@@ -231,3 +225,28 @@ If `include/secrets.h` exists but credentials still appear blank, check that it 
 - `FETCH_INTERVAL_SECONDS` controls both OpenSky polling and downstream enrichment frequency; tune it for your API quotas.
 - `DISPLAY_CYCLE_SECONDS` controls how long each cached flight card stays on screen.
 - Debug output is controlled via the `-DDEBUG_LEVEL=N` build flag (default 3 = INFO).
+
+---
+
+## Acknowledgements
+
+This firmware is derived from and inspired by the commercial [TheFlightWall](https://theflightwall.com) product. The CYD edition is an independent open-source reimplementation; it is not affiliated with or endorsed by TheFlightWall.
+
+### Libraries
+
+| Library | Author | Licence | Purpose |
+|:--------|:-------|:--------|:--------|
+| [TFT_eSPI](https://github.com/Bodmer/TFT_eSPI) | Bodmer | MIT | TFT display driver and graphics primitives |
+| [TJpg_Decoder](https://github.com/Bodmer/TJpg_Decoder) | Bodmer | MIT | On-device JPEG decode and render via TJpgDec |
+| [WiFiManager](https://github.com/tzapu/WiFiManager) | tzapu | MIT | Captive-portal WiFi provisioning |
+| [ArduinoJson](https://github.com/bblanchon/ArduinoJson) | Benoît Blanchon | MIT | JSON parsing for all API responses (v6) |
+
+### Data and asset sources
+
+| Source | URL | Used for |
+|:-------|:----|:---------|
+| OpenSky Network | <https://opensky-network.org> | Live ADS-B state vectors |
+| FlightAware AeroAPI | <https://www.flightaware.com/commercial/aeroapi> | Flight route and operator enrichment |
+| FlightWall CDN | <https://cdn.theflightwall.com> | Airline and aircraft friendly display names, brand colors |
+| Jxck-S/airline-logos | <https://github.com/Jxck-S/airline-logos> | Airline logo PNG images (~1 800 airlines by ICAO code) |
+| images.weserv.nl | <https://images.weserv.nl> | PNG→JPEG conversion and resize proxy; cached to LittleFS on first fetch |

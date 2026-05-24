@@ -2,14 +2,15 @@
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 #include <WiFiManager.h>
+#include <LittleFS.h>
 #include "debug.h"
-#include "config/RuntimeConfig.h"
-#include "config/HardwareConfiguration.h"
-#include "adapters/OpenSkyFetcher.h"
-#include "adapters/AeroAPIFetcher.h"
-#include "core/FlightDataFetcher.h"
-#include "adapters/CYDDisplay.h"
-#include "adapters/WebUIServer.h"
+#include "RuntimeConfig.h"
+#include "HardwareConfiguration.h"
+#include "OpenSkyFetcher.h"
+#include "AeroAPIFetcher.h"
+#include "FlightDataFetcher.h"
+#include "CYDDisplay.h"
+#include "WebUIServer.h"
 
 static OpenSkyFetcher    g_openSky;
 static AeroAPIFetcher    g_aeroApi;
@@ -21,6 +22,18 @@ static unsigned long g_lastFetchMs = 0;
 static unsigned long g_rebootAt    = 0; // non-zero = reboot pending at this millis() value
 static std::vector<StateVector> g_states;
 static std::vector<FlightInfo>  g_flights;
+
+static void initFilesystem()
+{
+  // LittleFS.begin(true) formats the partition on first boot if it is not yet initialised.
+  if (!LittleFS.begin(true))
+  {
+    DBG_ERROR("LittleFS mount failed");
+    return;
+  }
+  LittleFS.mkdir("/logos"); // no-op if already exists; ensures dir is present
+  DBG_INFO("LittleFS mounted — free: %u bytes", LittleFS.totalBytes() - LittleFS.usedBytes());
+}
 
 static void initDisplay()
 {
@@ -48,13 +61,32 @@ static void initWiFi()
   }
 }
 
+static void initTime()
+{
+  configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+  DBG_INFO("Waiting for NTP sync...");
+  time_t t = 0;
+  const unsigned long start = millis();
+  while (t < 1000000000UL && millis() - start < 10000)
+  {
+    delay(100);
+    t = time(nullptr);
+  }
+  if (t > 1000000000UL)
+    DBG_INFO("NTP synced: epoch=%lu", (unsigned long)t);
+  else
+    DBG_WARN("NTP sync timed out — flight status lines unavailable");
+}
+
 void setup()
 {
   Serial.begin(115200);
   delay(200); // settle before initialising peripherals
   RuntimeConfig::load();
+  initFilesystem();
   initDisplay();
   initWiFi();
+  initTime();
   g_webUI.begin();
   g_fetcher = new FlightDataFetcher(&g_openSky, &g_aeroApi);
   g_display.showLoading();

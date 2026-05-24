@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
-#include "models/FlightInfo.h"
+#include "FlightInfo.h"
 
 class BaseFlightFetcher
 {

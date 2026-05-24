@@ -1,6 +1,6 @@
 # FlightWall — CYD Edition
 
-ESP32 flight tracker displaying live nearby aircraft on a CYD TFT. OpenSky ADS-B state vectors (OAuth2) → AeroAPI enrichment → FlightWall CDN name lookup → cycling flight card. Current version: 0.3.0.
+ESP32 flight tracker displaying live nearby aircraft on a CYD TFT. OpenSky ADS-B state vectors (OAuth2) → AeroAPI enrichment → FlightWall CDN name lookup → cycling flight card. Current version: 0.12.0.
 
 ---
 
@@ -21,9 +21,15 @@ Standard CYD SPI pins apply to both (MOSI=13, SCLK=14, CS=15, DC=2, RST=-1, TOUC
 
 **Last-good-data policy.** `main.cpp` holds `g_flights` globally and only replaces it when a fetch returns a non-empty list. The display is called every `loop()` tick regardless of fetch state. Do not blank `g_flights` on an empty fetch result.
 
+**ADS-B fallback cards.** `FlightDataFetcher` always pushes a `FlightInfo` to `outFlights`, even when AeroAPI enrichment fails. ADS-B state (altitude, speed, heading, distance, bearing) is copied before the AeroAPI call. When AeroAPI fails, `info.ident` is the trimmed OpenSky callsign; route and status lines remain empty, which `CYDDisplay` handles gracefully.
+
 **CYDDisplay render guard.** `displayFlights()` computes a `renderKey` (composite of all visible fields including live metrics) and skips the SPI draw if nothing changed. Always call `resetRenderState()` when switching display content (clear, message, loading) so the next `displayFlights()` call forces a redraw.
 
-**AeroAPI filter document.** `AeroAPIFetcher` uses `DeserializationOption::Filter` with a `StaticJsonDocument<512>` to limit parsed fields. `DynamicJsonDocument` is capped at 4096 bytes. Do not remove the filter — unfiltered AeroAPI responses are too large and cause `NoMemory` parse failures on-device.
+**AeroAPI filter document.** `AeroAPIFetcher` uses `DeserializationOption::Filter` with a `StaticJsonDocument<768>` to limit parsed fields. `DynamicJsonDocument doc(16384)` is sized for responses with 15+ historical flights. Do not remove the filter or reduce the doc — unfiltered AeroAPI responses cause `NoMemory` parse failures on-device. Uses `http.getString()` (not `getStream()`) — `getStream()` on ESP32-Arduino-3.x with `WiFiClientSecure` silently delivered zero bytes to the ArduinoJson parser (`doc-mem=0`, `err=Ok`); `getString()` buffers the full body first and is reliable. With `doc=16384` and ≤30 KB responses the combined heap usage is well within available memory.
+
+**`parseIso8601` timezone handling.** AeroAPI returns departure/arrival timestamps in the local timezone of the origin/destination airport (e.g. `"2026-05-25T08:00:00+08:00"` for a CST departure). `parseIso8601` reads and subtracts the `+HH:MM` / `-HH:MM` designator to convert to a true UTC epoch. `mktime` on ESP32 with `configTime(0,0,...)` treats `struct tm` as UTC, so the subtraction is correct. Without this, international flights appear never to have departed (departure epoch is hours in the future) and show a wildly wrong arrival countdown.
+
+**AeroAPI flight record selection.** `AeroAPIFetcher` scans the full `flights[]` array and selects the entry whose departure (`actual_out` → `scheduled_out`) is the most recent one still in the past. AeroAPI sorts descending by `scheduled_out`, so `flights[0]` may be a future scheduled departure (tomorrow's service) or a previously completed inbound leg rather than the currently-airborne flight. The selection loop requires NTP to be synced (`now > 1e9`); if not synced it falls back to index 0. In ArduinoJson v6, the filter's `[0]` index acts as a template applied to all array elements — `doc["flights"]` contains all entries, not just the first.
 
 **Arduino ESP32 3.x LEDC API.** `CYDDisplay::initialize()` branches on `ESP_ARDUINO_VERSION_MAJOR >= 3`: uses `ledcAttachChannel(pin, freq, bits, channel)` + `ledcWrite(pin, duty)` for 3.x, and the old `ledcSetup()` + `ledcAttachPin()` + `ledcWrite(channel, duty)` for 2.x. Do not consolidate to one path.
 
@@ -35,14 +41,9 @@ Standard CYD SPI pins apply to both (MOSI=13, SCLK=14, CS=15, DC=2, RST=-1, TOUC
 
 - ArduinoJson pinned to **v6** (`^6.21.0`). All code uses `DynamicJsonDocument` / `StaticJsonDocument`. Do not upgrade to v7.
 - TFT_eSPI `^2.4.76` — all pin/driver config via build flags only, never `User_Setup.h`.
+- JPEG rendering: `Bodmer/TJpg_Decoder` (standalone lib — **not** bundled in TFT_eSPI 2.5.x). Include as `#include <TJpg_Decoder.h>`; the global object is still named `TJpgDec`.
 
 ---
-
-## Build notes
-
-- `build_src_filter` paths are relative to `src/` — `../adapters/` resolves to project-root `adapters/`. `NeoMatrixDisplay.cpp` is intentionally absent from the filter; do not add it.
-- Arduino ESP32 3.x requires explicit `-I` paths for `Network.h`, `HTTPClient.h`, `NetworkClientSecure.h` — already in `[cyd_common]` build_flags.
-- `g_states` in `main.cpp` is retained but not passed to the display; reserved for a future range/bearing overlay in Phase 2.
 
 ---
 
@@ -64,3 +65,10 @@ NVS keys: `ctr_lat`, `ctr_lon`, `radius_km`, `fetch_sec`, `cycle_sec`, `brightne
 ## WebUI
 
 `adapters/WebUIServer` runs `WebServer` on port 80. Three routes: `GET /` (HTML page), `GET /api/config` (JSON), `POST /api/config` (JSON, saves to NVS, sets reboot flag). `main.cpp` polls `shouldReboot()` each loop tick and calls `ESP.restart()` after a 400 ms millis-based delay (allows TCP flush). `WebServer.h` is built into the ESP32 Arduino framework — no extra lib_dep, but requires the explicit `-I WebServer/src` path in build_flags.
+
+## Build notes
+
+- All source lives under `src/`: `src/adapters/`, `src/config/`, `src/core/`, `src/interfaces/`, `src/models/`, `src/utils/`. Only `include/debug.h` and `include/secrets.h` sit outside `src/`. Headers use flat `#include "FileName.h"` — no subdirectory prefix — because every `src/` subdirectory has an explicit `-I` entry in `build_flags`.
+- `build_src_filter` paths are now relative to `src/` without `../` prefix (all `.cpp` files are inside `src/`). Add new `.cpp` files to the explicit list; do not use wildcards.
+- Arduino ESP32 3.x does not auto-expose framework library headers — each one needs an explicit `-I $PROJECT_PACKAGES_DIR/framework-arduinoespressif32/libraries/{LibName}/src` entry in `[cyd_common]` build_flags. Current entries: `FS/src`, `LittleFS/src`, `Network/src`, `HTTPClient/src`, `NetworkClientSecure/src`, `WebServer/src`.
+- `g_states` in `main.cpp` is retained but not passed to the display; reserved for a future range/bearing overlay.

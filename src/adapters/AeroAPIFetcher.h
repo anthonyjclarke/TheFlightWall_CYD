@@ -4,8 +4,8 @@
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
-#include "interfaces/BaseFlightFetcher.h"
-#include "config/APIConfiguration.h"
+#include "BaseFlightFetcher.h"
+#include "APIConfiguration.h"
 
 class AeroAPIFetcher : public BaseFlightFetcher
 {

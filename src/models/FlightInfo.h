@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <vector>
+#include <time.h>
 #include "AirportInfo.h"
 
 struct FlightInfo
@@ -39,4 +40,15 @@ struct FlightInfo
     // Human-friendly display strings
     String airline_display_name_full;
     String aircraft_display_name_short;
+
+    // Airline brand color (RGB565). 0xFFFF = white fallback when CDN has no color.
+    uint16_t airline_color = 0xFFFF;
+
+    // Flight schedule timing (UTC epoch seconds). Zero = unknown.
+    time_t actual_out_epoch  = 0; // actual departure gate push
+    time_t estimated_in_epoch = 0; // estimated gate arrival
+
+    // LittleFS path to cached airline logo JPEG, e.g. "/logos/QFA.jpg".
+    // Empty = logo not available; display falls back to colored airline text.
+    String logo_path;
 };

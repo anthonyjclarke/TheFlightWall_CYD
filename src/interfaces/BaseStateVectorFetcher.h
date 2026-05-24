@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vector>
-#include "models/StateVector.h"
+#include "StateVector.h"
 
 class BaseStateVectorFetcher
 {

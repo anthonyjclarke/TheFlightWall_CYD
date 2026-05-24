@@ -32,8 +32,19 @@ namespace APIConfiguration
 
     static constexpr const char *AEROAPI_BASE_URL = "https://aeroapi.flightaware.com/aeroapi";
 
-    // FlightWall CDN — airline/aircraft name lookup
-    static constexpr const char *FLIGHTWALL_CDN_BASE_URL = "https://cdn.theflightwall.com";
+    // FlightWall CDN — airline/aircraft name and aircraft lookups
+    static constexpr const char *FLIGHTWALL_CDN_BASE_URL  = "https://cdn.theflightwall.com";
+
+    // Airline logos — Jxck-S/airline-logos (github.com/Jxck-S/airline-logos).
+    // PNGs are fetched via images.weserv.nl which converts to JPEG and resizes
+    // in one request; the result is cached in LittleFS as /logos/{ICAO}.jpg.
+    // LOGO_W / LOGO_H are passed to the proxy — sized to fit the 118px airline
+    // column on the 320×240 display with a few pixels of margin.
+    static constexpr const char *AIRLINE_LOGO_PROXY_BASE =
+        "https://images.weserv.nl/?output=jpg&fit=contain&bg=000000"
+        "&url=raw.githubusercontent.com/Jxck-S/airline-logos/main/flightaware_logos/";
+    static constexpr uint16_t AIRLINE_LOGO_W = 80;
+    static constexpr uint16_t AIRLINE_LOGO_H = 80;
 
     // TLS — set false in production once CA cert is pinned
     static constexpr bool AEROAPI_INSECURE_TLS    = true;

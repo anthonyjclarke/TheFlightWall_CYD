@@ -2,10 +2,10 @@
 
 #include <Arduino.h>
 #include <vector>
-#include "interfaces/BaseStateVectorFetcher.h"
-#include "interfaces/BaseFlightFetcher.h"
-#include "models/StateVector.h"
-#include "models/FlightInfo.h"
+#include "BaseStateVectorFetcher.h"
+#include "BaseFlightFetcher.h"
+#include "StateVector.h"
+#include "FlightInfo.h"
 
 class FlightDataFetcher
 {
