@@ -8,6 +8,7 @@ Input: flight ident (e.g., callsign).
 Output: Populates FlightInfo on success and returns true.
 */
 #include "adapters/AeroAPIFetcher.h"
+#include "debug.h"
 
 static String safeGetString(JsonVariant v, const char *key)
 {
@@ -20,7 +21,7 @@ bool AeroAPIFetcher::fetchFlightInfo(const String &flightIdent, FlightInfo &outI
 {
     if (strlen(APIConfiguration::AEROAPI_KEY) == 0)
     {
-        Serial.println("AeroAPIFetcher: No API key configured");
+        DBG_WARN("AeroAPI: no API key configured");
         return false;
     }
 
@@ -33,13 +34,17 @@ bool AeroAPIFetcher::fetchFlightInfo(const String &flightIdent, FlightInfo &outI
     HTTPClient http;
     String url = String(APIConfiguration::AEROAPI_BASE_URL) + "/flights/" + flightIdent;
     http.begin(client, url);
+    http.setTimeout(15000);
     http.addHeader("x-apikey", APIConfiguration::AEROAPI_KEY);
     http.addHeader("Accept", "application/json");
 
     int code = http.GET();
     if (code != 200)
     {
-        Serial.printf("AeroAPIFetcher: HTTP request failed with code %d for flight %s\n", code, flightIdent.c_str());
+        DBG_WARN("AeroAPI: HTTP %d (%s) for %s",
+                 code,
+                 HTTPClient::errorToString(code).c_str(),
+                 flightIdent.c_str());
         http.end();
         return false;
     }
@@ -47,18 +52,32 @@ bool AeroAPIFetcher::fetchFlightInfo(const String &flightIdent, FlightInfo &outI
     String payload = http.getString();
     http.end();
 
-    DynamicJsonDocument doc(16384);
-    DeserializationError err = deserializeJson(doc, payload);
+    StaticJsonDocument<512> filter;
+    filter["flights"][0]["ident"] = true;
+    filter["flights"][0]["ident_icao"] = true;
+    filter["flights"][0]["ident_iata"] = true;
+    filter["flights"][0]["operator"] = true;
+    filter["flights"][0]["operator_icao"] = true;
+    filter["flights"][0]["operator_iata"] = true;
+    filter["flights"][0]["aircraft_type"] = true;
+    filter["flights"][0]["origin"]["code_icao"] = true;
+    filter["flights"][0]["destination"]["code_icao"] = true;
+
+    DynamicJsonDocument doc(4096);
+    DeserializationError err = deserializeJson(doc, payload, DeserializationOption::Filter(filter));
     if (err)
     {
-        Serial.printf("AeroAPIFetcher: JSON parsing failed for flight %s: %s\n", flightIdent.c_str(), err.c_str());
+        DBG_ERROR("AeroAPI: JSON parse failed for %s: %s  payload_len=%u",
+                  flightIdent.c_str(),
+                  err.c_str(),
+                  (unsigned)payload.length());
         return false;
     }
 
     JsonArray flights = doc["flights"].as<JsonArray>();
     if (flights.isNull() || flights.size() == 0)
     {
-        Serial.printf("AeroAPIFetcher: No flights found in response for %s\n", flightIdent.c_str());
+        DBG_WARN("AeroAPI: no flights in response for %s", flightIdent.c_str());
         return false;
     }
 

@@ -38,6 +38,17 @@ size_t FlightDataFetcher::fetchFlights(std::vector<StateVector> &outStates,
         FlightInfo info;
         if (_flightFetcher->fetchFlightInfo(s.callsign, info))
         {
+            info.origin_country    = s.origin_country;
+            info.distance_km       = s.distance_km;
+            info.bearing_deg       = s.bearing_deg;
+            info.baro_altitude_m   = s.baro_altitude;
+            info.geo_altitude_m    = s.geo_altitude;
+            info.velocity_mps      = s.velocity;
+            info.heading_deg       = s.heading;
+            info.vertical_rate_mps = s.vertical_rate;
+            info.last_contact      = s.last_contact;
+            info.on_ground         = s.on_ground;
+
             FlightWallFetcher fw;
             if (info.operator_icao.length())
             {
