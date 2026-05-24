@@ -7,7 +7,7 @@ Flow:
 Output: Returns count of enriched flights and fills outStates/outFlights.
 */
 #include "core/FlightDataFetcher.h"
-#include "config/UserConfiguration.h"
+#include "config/RuntimeConfig.h"
 #include "adapters/FlightWallFetcher.h"
 
 FlightDataFetcher::FlightDataFetcher(BaseStateVectorFetcher *stateFetcher,
@@ -21,9 +21,9 @@ size_t FlightDataFetcher::fetchFlights(std::vector<StateVector> &outStates,
     outFlights.clear();
 
     bool ok = _stateFetcher->fetchStateVectors(
-        UserConfiguration::CENTER_LAT,
-        UserConfiguration::CENTER_LON,
-        UserConfiguration::RADIUS_KM,
+        RuntimeConfig::centerLat(),
+        RuntimeConfig::centerLon(),
+        RuntimeConfig::radiusKm(),
         outStates);
     if (!ok)
         return 0;

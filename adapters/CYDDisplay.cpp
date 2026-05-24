@@ -3,7 +3,7 @@
 #include <TFT_eSPI.h>
 #include "config/UserConfiguration.h"
 #include "config/HardwareConfiguration.h"
-#include "config/TimingConfiguration.h"
+#include "config/RuntimeConfig.h"
 #include "debug.h"
 
 // Font and layout constants differ between the two supported display variants.
@@ -88,7 +88,7 @@ void CYDDisplay::displayFlights(const std::vector<FlightInfo> &flights)
   }
 
   const unsigned long now        = millis();
-  const unsigned long intervalMs = TimingConfiguration::DISPLAY_CYCLE_SECONDS * 1000UL;
+  const unsigned long intervalMs = RuntimeConfig::displayCycleSec() * 1000UL;
 
   if (flights.size() > 1 && now - _lastCycleMs >= intervalMs)
   {

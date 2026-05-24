@@ -3,20 +3,22 @@
 #include <WiFiClientSecure.h>
 #include <WiFiManager.h>
 #include "debug.h"
-#include "config/UserConfiguration.h"
-#include "config/TimingConfiguration.h"
+#include "config/RuntimeConfig.h"
 #include "config/HardwareConfiguration.h"
 #include "adapters/OpenSkyFetcher.h"
 #include "adapters/AeroAPIFetcher.h"
 #include "core/FlightDataFetcher.h"
 #include "adapters/CYDDisplay.h"
+#include "adapters/WebUIServer.h"
 
 static OpenSkyFetcher    g_openSky;
 static AeroAPIFetcher    g_aeroApi;
 static FlightDataFetcher *g_fetcher = nullptr;
 static CYDDisplay        g_display;
+static WebUIServer       g_webUI;
 
 static unsigned long g_lastFetchMs = 0;
+static unsigned long g_rebootAt    = 0; // non-zero = reboot pending at this millis() value
 static std::vector<StateVector> g_states;
 static std::vector<FlightInfo>  g_flights;
 
@@ -49,9 +51,11 @@ static void initWiFi()
 void setup()
 {
   Serial.begin(115200);
-  delay(200); // settle time before initialising peripherals
+  delay(200); // settle before initialising peripherals
+  RuntimeConfig::load();
   initDisplay();
   initWiFi();
+  g_webUI.begin();
   g_fetcher = new FlightDataFetcher(&g_openSky, &g_aeroApi);
   g_display.showLoading();
   DBG_INFO("Free heap: %u bytes", ESP.getFreeHeap());
@@ -59,8 +63,23 @@ void setup()
 
 void loop()
 {
+  // ── WebUI / reboot handling ────────────────────────────────────────────────
+  g_webUI.handle();
+
+  if (g_webUI.shouldReboot() && g_rebootAt == 0)
+  {
+    g_rebootAt = millis() + 400; // allow TCP flush before restart
+    g_display.displayMessage("Config saved — rebooting...");
+  }
+  if (g_rebootAt > 0 && millis() >= g_rebootAt)
+  {
+    DBG_INFO("Rebooting after config save");
+    ESP.restart();
+  }
+
+  // ── Flight fetch / display ─────────────────────────────────────────────────
   const unsigned long now        = millis();
-  const unsigned long intervalMs = TimingConfiguration::FETCH_INTERVAL_SECONDS * 1000UL;
+  const unsigned long intervalMs = RuntimeConfig::fetchIntervalSec() * 1000UL;
   const bool shouldFetch = g_flights.empty() || (now - g_lastFetchMs >= intervalMs);
 
   if (shouldFetch && WiFi.status() != WL_CONNECTED)

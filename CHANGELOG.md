@@ -2,6 +2,25 @@
 
 ---
 
+## [0.4.0] 24-05-2026
+
+### Added
+- `RuntimeConfig` module — NVS-backed runtime configuration (Preferences, namespace `flightwall`); replaces all compile-time constants for location, timing, brightness, and API credentials
+- `WebUIServer` — HTTP server on port 80 serving a single-page configuration UI; routes `GET /`, `GET /api/config`, `POST /api/config`
+- WebUI HTML page embedded as PROGMEM in `WebUIServer.cpp`; dark amber theme, no external dependencies
+- Configurable fields: latitude, longitude, radius, OpenSky client ID/secret, AeroAPI key, fetch interval, card cycle duration, backlight brightness
+- Save & Reboot flow: POST handler persists to NVS, sets a flag; `main.cpp` reboots via millis-based delay to allow TCP flush
+
+### Changed
+- `FlightDataFetcher` now reads location from `RuntimeConfig` instead of `UserConfiguration`
+- `CYDDisplay` now reads display cycle duration from `RuntimeConfig` instead of `TimingConfiguration`
+- `OpenSkyFetcher` now reads OAuth credentials from `RuntimeConfig` instead of `APIConfiguration`
+- `AeroAPIFetcher` now reads AeroAPI key from `RuntimeConfig` instead of `APIConfiguration`
+- `main.cpp` reads fetch interval from `RuntimeConfig`; calls `RuntimeConfig::load()` before any other init
+- `platformio.ini` adds `WebServer/src` explicit include path and new `.cpp` files to `build_src_filter`
+
+---
+
 ## [0.3.0] 24-05-2026
 
 ### Added

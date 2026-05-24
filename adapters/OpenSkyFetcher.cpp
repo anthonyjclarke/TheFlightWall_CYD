@@ -9,6 +9,7 @@ Inputs: centerLat, centerLon, radiusKm, min/max bearing; APIConfiguration creds/
 Outputs: Populates outStateVectors with filtered results (distance_km, bearing_deg set).
 */
 #include "adapters/OpenSkyFetcher.h"
+#include "config/RuntimeConfig.h"
 #include "debug.h"
 
 static String urlEncodeForm(const String &value)
@@ -38,8 +39,8 @@ static String urlEncodeForm(const String &value)
 
 bool OpenSkyFetcher::ensureAccessToken(bool forceRefresh)
 {
-    const bool oauthConfigured = (strlen(APIConfiguration::OPENSKY_CLIENT_ID) > 0) &&
-                                 (strlen(APIConfiguration::OPENSKY_CLIENT_SECRET) > 0);
+    const bool oauthConfigured = (RuntimeConfig::openskyClientId().length() > 0) &&
+                                 (RuntimeConfig::openskyClientSecret().length() > 0);
     if (!oauthConfigured)
     {
         DBG_WARN("OpenSky: OAuth credentials not configured");
@@ -77,8 +78,10 @@ bool OpenSkyFetcher::ensureAuthenticated(bool forceRefresh)
 
 bool OpenSkyFetcher::requestAccessToken(String &outToken, unsigned long &outExpiryMs)
 {
-    if (strlen(APIConfiguration::OPENSKY_CLIENT_ID) == 0 ||
-        strlen(APIConfiguration::OPENSKY_CLIENT_SECRET) == 0)
+    const String clientId     = RuntimeConfig::openskyClientId();
+    const String clientSecret = RuntimeConfig::openskyClientSecret();
+
+    if (clientId.length() == 0 || clientSecret.length() == 0)
     {
         DBG_WARN("OpenSky: OAuth credentials not configured");
         return false;
@@ -92,13 +95,13 @@ bool OpenSkyFetcher::requestAccessToken(String &outToken, unsigned long &outExpi
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
 
     String body = String("grant_type=client_credentials&client_id=") +
-                  urlEncodeForm(APIConfiguration::OPENSKY_CLIENT_ID) +
+                  urlEncodeForm(clientId) +
                   "&client_secret=" +
-                  urlEncodeForm(APIConfiguration::OPENSKY_CLIENT_SECRET);
+                  urlEncodeForm(clientSecret);
 
     DBG_VERBOSE("OpenSky: client_id: %s  secret_len: %d  body_len: %d",
-                APIConfiguration::OPENSKY_CLIENT_ID,
-                (int)strlen(APIConfiguration::OPENSKY_CLIENT_SECRET),
+                clientId.c_str(),
+                (int)clientSecret.length(),
                 (int)body.length());
     http.setTimeout(15000);
 

@@ -8,7 +8,7 @@ namespace UserConfiguration
     // These will be configurable via the WebUI in a future phase.
     static constexpr double CENTER_LAT = -33.8688; // Sydney, AU (example)
     static constexpr double CENTER_LON = 151.2093;
-    static constexpr double RADIUS_KM  = 50.0;
+    static constexpr double RADIUS_KM  = 15.0;
 
     // Display colour palette (RGB565).
     // Background is always black; these control text and accent colours.
