@@ -1,169 +1,273 @@
 #include "WebUIServer.h"
 
 #include <ArduinoJson.h>
+#include <LittleFS.h>
+#include <math.h>
+#include <time.h>
+#include "CYDDisplay.h"
 #include "RuntimeConfig.h"
 #include "debug.h"
 
-// ── Embedded HTML page ────────────────────────────────────────────────────────
-// Single-file page; no external dependencies.  JS uses fetch() to GET/POST
-// /api/config.  Dark amber theme matches the display aesthetic.
+// Single-file dashboard application. Data is polled from the device so the
+// ESP32 does not need WebSocket buffering or any persistent log storage.
 static const char HTML_PAGE[] PROGMEM = R"rawlit(<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>FlightWall Config</title>
+<title>FlightWall Operations</title>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:system-ui,sans-serif;background:#0d0d0d;color:#ddd;
-  padding:18px 16px 32px;max-width:540px;margin:0 auto}
-h1{color:#fd8200;margin-bottom:22px;font-size:1.35em;letter-spacing:.03em}
-h2{color:#777;font-size:0.78em;letter-spacing:.13em;text-transform:uppercase;
-  margin:24px 0 8px;border-bottom:1px solid #1e1e1e;padding-bottom:5px}
-label{display:block;font-size:0.79em;color:#666;margin:10px 0 3px}
-input[type=text],input[type=password],input[type=number]{
-  width:100%;padding:7px 10px;background:#171717;border:1px solid #2a2a2a;
-  border-radius:4px;color:#eee;font-size:0.93em}
-input:focus{outline:none;border-color:#fd8200}
-input[type=range]{width:100%;padding:0;border:none;background:none;
-  accent-color:#fd8200;margin-top:4px}
-.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.hint{font-size:0.72em;color:#3a3a3a;margin-top:3px}
-#bval{color:#fd8200;font-weight:700}
-button{display:block;width:100%;margin-top:24px;padding:11px;
-  background:#fd8200;border:none;border-radius:4px;color:#000;
-  font-size:0.97em;font-weight:700;cursor:pointer;letter-spacing:.04em}
-button:hover{background:#c86600}
-button:disabled{background:#5a3000;color:#333;cursor:default}
-#msg{margin-top:13px;padding:9px 12px;border-radius:4px;text-align:center;
-  font-size:0.87em;display:none}
+:root{--bg:#060a0e;--panel:#0c1218;--panel2:#111a21;--line:#1d2b34;--muted:#71808b;--text:#e8edf0;--amber:#f6a23a;--green:#48d095;--blue:#58a8c9;--red:#e87063;--glow:rgba(246,162,58,.17)}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:Inter,"Avenir Next",system-ui,sans-serif}
+body{background-image:radial-gradient(circle at 18% 0,rgba(246,162,58,.08),transparent 32rem),linear-gradient(135deg,#060a0e,#080f13 62%,#060a0e)}
+.shell{max-width:1380px;margin:auto;padding:24px}
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:22px}
+.brand small,.eyebrow{display:block;color:var(--amber);font-size:11px;letter-spacing:.22em;text-transform:uppercase;margin-bottom:9px}
+h1{font-size:clamp(26px,3vw,38px);font-weight:540;line-height:1;margin:0;letter-spacing:-.04em}
+.status{display:flex;align-items:center;gap:12px;border:1px solid var(--line);background:rgba(12,18,24,.75);border-radius:30px;padding:9px 15px;font-size:13px;color:var(--muted)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 12px var(--green)}
+.grid{display:grid;grid-template-columns:minmax(350px,520px) minmax(350px,1fr);gap:18px;margin-bottom:18px}
+.panel{background:linear-gradient(145deg,rgba(15,23,29,.94),rgba(8,13,18,.96));border:1px solid var(--line);border-radius:18px;box-shadow:0 16px 44px rgba(0,0,0,.22);overflow:hidden}
+.panel-head{display:flex;justify-content:space-between;align-items:center;padding:18px 20px 12px}
+.panel-title{font-size:12px;color:var(--muted);letter-spacing:.16em;text-transform:uppercase}
+.pill{border:1px solid #223641;padding:4px 10px;border-radius:20px;color:var(--blue);font-size:11px}
+.monitor-wrap{padding:10px 20px 23px}
+.bezel{background:#121a20;border-radius:16px;padding:14px;box-shadow:inset 0 0 0 1px #29343c,0 22px 36px rgba(0,0,0,.35)}
+.tft{width:100%;aspect-ratio:4/3;background:#000;border-radius:4px;display:flex;flex-direction:column;color:#fff;font-family:Arial,sans-serif;overflow:hidden}
+.tft[data-wide=true]{aspect-ratio:3/2}
+.tft-top{height:17%;display:flex;align-items:center;border-bottom:1px solid #272d30;padding:0 3%;gap:18px}
+.tft-count{font-size:clamp(11px,1vw,14px);color:#acb5ba}
+.tft-ident{font-size:clamp(25px,3vw,38px);font-weight:700;flex:1;text-align:center;margin-right:36px}
+.tft-mid{height:43%;border-bottom:1px solid #272d30;display:grid;grid-template-columns:37% 63%;align-items:center}
+.tft-airline{text-align:center;color:#fff;font-weight:600;padding:8px;font-size:clamp(15px,1.5vw,22px)}
+.tft-airline img{max-height:72px;max-width:92%;object-fit:contain;display:block;margin:auto}
+.tft-route{text-align:center;color:#fd942d;font-size:clamp(25px,3vw,38px);font-weight:700}
+.tft-aircraft{font-size:clamp(12px,1.25vw,17px);color:#c4cbd0;margin-top:8px}
+.tft-status{flex:1;padding:5% 4% 0;color:#c8d0d5;font-size:clamp(12px,1.23vw,17px)}
+.tft-status div{margin-bottom:7px}
+.bar{height:5%;margin:0 3% 3%;background:#053820}.bar span{display:block;height:100%;background:#16b760;width:0}
+.monitor-foot{display:flex;justify-content:space-between;color:var(--muted);font-size:12px;padding-top:14px}
+.stream{height:390px;overflow:auto;padding:4px 20px 20px;font-family:"SFMono-Regular",ui-monospace,monospace;font-size:12px}
+.event{padding:10px 0;border-bottom:1px solid rgba(29,43,52,.72);line-height:1.55;color:#c4ced4}
+.event:first-child{color:#e7ecee}.empty{color:var(--muted);padding:22px 0}
+.section{margin-bottom:18px}.cards{display:grid;grid-template-columns:repeat(5,minmax(210px,1fr));gap:12px;padding:0 18px 18px}
+.flight{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:15px;min-height:250px}
+.flight-id{display:flex;justify-content:space-between;align-items:start;margin-bottom:15px}.flight h3{font-size:22px;margin:0;letter-spacing:-.02em}
+.tag{color:var(--green);border:1px solid rgba(72,208,149,.32);font-size:10px;border-radius:12px;padding:3px 7px;letter-spacing:.1em}
+.route{font-size:22px;color:var(--amber);font-weight:650;margin-bottom:4px}.city{font-size:12px;color:var(--muted);min-height:32px;margin-bottom:12px}
+.facts{display:grid;grid-template-columns:1fr 1fr;gap:10px 8px}.fact span{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.11em;margin-bottom:3px}.fact b{font-size:13px;font-weight:500}
+.settings{padding:0 20px 22px}.settings-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.field label{display:block;color:var(--muted);font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin:0 0 6px}
+input{width:100%;background:#0a1015;border:1px solid var(--line);border-radius:8px;padding:9px 10px;color:var(--text);font-size:13px}input:focus{outline:none;border-color:var(--amber)}
+.credentials{margin-top:16px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.cred-note{font-size:11px;color:var(--muted);margin-top:6px}.configured{color:var(--green)}
+.actions{display:flex;justify-content:space-between;align-items:center;margin-top:18px;gap:10px}.message{font-size:13px;color:var(--muted)}
+button{background:var(--amber);border:0;border-radius:9px;padding:11px 18px;font-weight:650;cursor:pointer;color:#181005}button:disabled{opacity:.45;cursor:default}
+@media(max-width:1120px){.cards{grid-template-columns:repeat(2,minmax(230px,1fr))}.settings-grid,.credentials{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:800px){.shell{padding:14px}.grid{grid-template-columns:1fr}.stream{height:280px}.cards,.settings-grid,.credentials{grid-template-columns:1fr}header{align-items:start;flex-direction:column}}
 </style>
 </head>
-<body>
-<h1>&#9992;&nbsp;FlightWall Config</h1>
-
-<h2>Location</h2>
-<div class="row">
-  <div>
-    <label>Latitude</label>
-    <input type="number" id="lat" step="0.0001" placeholder="-33.8688">
-  </div>
-  <div>
-    <label>Longitude</label>
-    <input type="number" id="lon" step="0.0001" placeholder="151.2093">
-  </div>
+<body><div class="shell">
+<header><div class="brand"><small>Local Radar / Operations Console</small><h1>FlightWall</h1></div><div class="status"><span class="dot"></span><span id="connection">Connecting to device</span><span id="clock"></span></div></header>
+<div class="grid">
+ <section class="panel"><div class="panel-head"><span class="panel-title">TFT Mirror</span><span class="pill">Browser Replica / Low Impact</span></div><div class="monitor-wrap"><div class="bezel"><div class="tft" id="tft"><div class="tft-top"><span class="tft-count" id="scount">0/0</span><span class="tft-ident" id="sident">SEARCHING...</span></div><div class="tft-mid"><div class="tft-airline" id="sairline"></div><div><div class="tft-route" id="sroute">--- - ---</div><div class="tft-aircraft" id="saircraft"></div></div></div><div class="tft-status"><div id="sline1"></div><div id="sline2"></div></div><div class="bar"><span id="sbar"></span></div></div></div><div class="monitor-foot"><span id="resolution">Display unavailable</span><span id="cardtime"></span></div></div></section>
+ <section class="panel"><div class="panel-head"><span class="panel-title">Flight Data Feed</span><span class="pill">Volatile / API Reads</span></div><div class="stream" id="events"><div class="empty">Waiting for a fetch cycle...</div></div></section>
 </div>
-<label>Search Radius (km)</label>
-<input type="number" id="radius" min="1" max="500" step="1" placeholder="50">
-<div class="hint">Bounding-box radius around the configured centre point.</div>
-
-<h2>API Keys</h2>
-<label>OpenSky Client ID</label>
-<input type="text" id="osky_id" autocomplete="off" spellcheck="false">
-<label>OpenSky Client Secret</label>
-<input type="password" id="osky_sec" autocomplete="new-password">
-<label>AeroAPI Key</label>
-<input type="password" id="aero_key" autocomplete="new-password">
-<div class="hint">Credentials are stored in device NVS and never logged.</div>
-
-<h2>Timing &amp; Display</h2>
-<div class="row">
-  <div>
-    <label>Fetch Interval (s)</label>
-    <input type="number" id="fetch_sec" min="10" max="3600">
-    <div class="hint">OpenSky poll rate &mdash; min 10 s.</div>
-  </div>
-  <div>
-    <label>Card Cycle (s)</label>
-    <input type="number" id="cycle_sec" min="1" max="60">
-    <div class="hint">Seconds per flight card.</div>
-  </div>
+<section class="panel section"><div class="panel-head"><span class="panel-title">Enriched Flight Intelligence</span><span class="pill" id="enrichedCount">0 Selected</span></div><div class="cards" id="flights"><div class="empty">No current enriched flights.</div></div></section>
+<section class="panel"><div class="panel-head"><span class="panel-title">Device Configuration</span><span class="pill">Protected Credentials</span></div><div class="settings">
+ <div class="settings-grid">
+  <div class="field"><label>Latitude</label><input type="number" id="lat" step="0.0001"></div><div class="field"><label>Longitude</label><input type="number" id="lon" step="0.0001"></div>
+  <div class="field"><label>Radius km</label><input type="number" id="radius" min="1" max="500"></div><div class="field"><label>Brightness</label><input type="number" id="brightness" min="0" max="255"></div>
+  <div class="field"><label>Fetch interval sec</label><input type="number" id="fetch_sec" min="10" max="3600"></div><div class="field"><label>Card cycle sec</label><input type="number" id="cycle_sec" min="1" max="60"></div>
+ </div>
+ <div class="credentials">
+  <div class="field"><label>OpenSky Client ID <span id="oskyIdState"></span></label><input type="password" id="osky_id" placeholder="Leave blank to retain"><div class="cred-note"><input type="checkbox" id="clear_osky" style="width:auto"> Clear OpenSky credentials</div></div>
+  <div class="field"><label>OpenSky Secret <span id="oskyState"></span></label><input type="password" id="osky_sec" placeholder="Leave blank to retain"></div>
+  <div class="field"><label>AeroAPI Key <span id="aeroState"></span></label><input type="password" id="aero_key" placeholder="Leave blank to retain"><div class="cred-note"><input type="checkbox" id="clear_aero" style="width:auto"> Clear AeroAPI key</div></div>
+ </div>
+ <div class="actions"><span class="message" id="msg">Credential values are never returned to this page.</span><button id="save" onclick="saveConfig()">Save &amp; Reboot</button></div>
+</div></section>
 </div>
-<label>Backlight brightness: <span id="bval">200</span></label>
-<input type="range" id="brightness" min="0" max="255"
-  oninput="document.getElementById('bval').textContent=this.value">
-
-<button id="savebtn" onclick="saveConfig()">Save &amp; Reboot</button>
-<div id="msg"></div>
-
 <script>
-function el(id){return document.getElementById(id);}
-
+const $=id=>document.getElementById(id); let configLoaded=false;
+const val=(v,fallback='--')=>(v===undefined||v===null||v==='')?fallback:v;
+const esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function fixed(v,n=1){return (v===undefined||v===null)?'--':Number(v).toFixed(n)}
+function when(epoch){if(!epoch)return '--';return new Date(epoch*1000).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
+function route(f){return `${val(f.origin_iata,f.origin_icao||'---')} - ${val(f.destination_iata,f.destination_icao||'---')}`;}
+function source(v){return ['ADS-B','ASTERIX','FLARM'][v]||val(v);}
+function statusLines(f){
+ const now=Date.now()/1000;
+ if(f.actual_out_epoch){
+  const ago=Math.max(0,Math.floor((now-f.actual_out_epoch)/60)), until=f.estimated_in_epoch?Math.floor((f.estimated_in_epoch-now)/60):null;
+  const out=ago<60?`${ago} min ago`:`${Math.floor(ago/60)}h ${ago%60}m ago`;
+  let arrive=''; if(until!==null) arrive=until<=0?'Arrived':(until<60?`Arriving in ${until} min`:`Arriving in ${Math.floor(until/60)}h ${until%60}m`);
+  return [`Departed ${val(f.origin_city,f.origin_iata||'')} ${out}`,arrive];
+ }
+ const alt=f.on_ground?'GROUND':(f.baro_altitude_m!=null?`${Math.round(f.baro_altitude_m*3.28084/100)*100}ft`:'');
+ return [`${fixed(f.distance_km)}km  ${alt}`,`${f.velocity_mps!=null?Math.round(f.velocity_mps*3.6)+'km/h':''}  ${f.heading_deg!=null?Math.round(f.heading_deg)+' deg':''}`];
+}
+function renderScreen(screen){
+ const f=screen.flight; $('tft').dataset.wide=screen.width>400; $('resolution').textContent=`${screen.width||'--'} x ${screen.height||'--'} physical TFT`;
+ if(!f){$('sident').textContent='SEARCHING...';$('scount').textContent='0/0';$('sroute').textContent='--- - ---';$('sairline').textContent='';$('saircraft').textContent='';$('sline1').textContent='';$('sline2').textContent='';$('sbar').style.width='0';return;}
+ $('scount').textContent=`${screen.index+1}/${screen.total}`;$('sident').textContent=val(f.ident,'UNKNOWN');$('sroute').textContent=route(f);$('saircraft').textContent=val(f.aircraft_display,f.aircraft_code||'');
+ $('sairline').innerHTML=''; if(f.logo){const img=document.createElement('img');img.src='/api/logo?name='+encodeURIComponent(f.logo);$('sairline').appendChild(img);}else $('sairline').textContent=val(f.airline,f.operator_icao||'');
+ const lines=statusLines(f);$('sline1').textContent=lines[0];$('sline2').textContent=lines[1];
+ let progress=0;if(f.actual_out_epoch&&f.estimated_in_epoch>f.actual_out_epoch)progress=Math.min(100,Math.max(0,(Date.now()/1000-f.actual_out_epoch)/(f.estimated_in_epoch-f.actual_out_epoch)*100));$('sbar').style.width=progress+'%';
+}
+function fact(label,value){return `<div class="fact"><span>${esc(label)}</span><b>${esc(val(value))}</b></div>`}
+function renderFlights(list){
+ $('enrichedCount').textContent=`${list.length} Selected`;
+ if(!list.length){$('flights').innerHTML='<div class="empty">No current enriched flights. Live ADS-B cards may still be showing on the TFT.</div>';return;}
+ $('flights').innerHTML=list.map(f=>`<article class="flight"><div class="flight-id"><h3>${esc(val(f.ident))}</h3><span class="tag">ENRICHED</span></div><div class="route">${esc(route(f))}</div><div class="city">${esc(val(f.origin_city,''))} ${f.destination_city?' to '+esc(f.destination_city):''}</div><div class="facts">${fact('Airline',f.airline||f.operator_icao)}${fact('Aircraft',f.aircraft_display||f.aircraft_code)}${fact('Distance',fixed(f.distance_km)+' km')}${fact('Bearing',fixed(f.bearing_deg,0)+' deg')}${fact('Altitude',f.baro_altitude_m!=null?Math.round(f.baro_altitude_m*3.28084)+' ft':null)}${fact('Geo altitude',f.geo_altitude_m!=null?Math.round(f.geo_altitude_m*3.28084)+' ft':null)}${fact('Speed',f.velocity_mps!=null?Math.round(f.velocity_mps*3.6)+' km/h':null)}${fact('Vertical rate',f.vertical_rate_mps!=null?fixed(f.vertical_rate_mps)+' m/s':null)}${fact('Heading',f.heading_deg!=null?fixed(f.heading_deg,0)+' deg':null)}${fact('Departure',when(f.actual_out_epoch))}${fact('Arrival',when(f.estimated_in_epoch))}${fact('ICAO24',f.icao24)}${fact('Position',f.lat!=null?fixed(f.lat,4)+', '+fixed(f.lon,4):null)}${fact('Squawk',f.squawk)}${fact('Source',source(f.position_source))}${fact('Country',f.origin_country)}</div></article>`).join('');
+}
+function renderEvents(events){
+ const el=$('events'), pinned=el.scrollHeight-el.scrollTop-el.clientHeight<35;
+ el.innerHTML=events.length?events.slice().reverse().map(e=>`<div class="event">${esc(e)}</div>`).join(''):'<div class="empty">Waiting for a fetch cycle...</div>';
+ if(pinned)el.scrollTop=0;
+}
+async function poll(){
+ try{const d=await (await fetch('/api/live',{cache:'no-store'})).json();$('connection').textContent='Device live';$('clock').textContent=new Date().toLocaleTimeString();renderScreen(d.screen);renderFlights(d.enriched);renderEvents(d.events);$('cardtime').textContent=d.last_fetch?`Last scan ${new Date(d.last_fetch*1000).toLocaleTimeString()}`:'';}catch(e){$('connection').textContent='Device unavailable';}
+}
 async function loadConfig(){
-  try{
-    const d=await(await fetch('/api/config')).json();
-    el('lat').value=d.lat??'';
-    el('lon').value=d.lon??'';
-    el('radius').value=d.radius_km??50;
-    el('osky_id').value=d.osky_id??'';
-    el('osky_sec').value=d.osky_sec??'';
-    el('aero_key').value=d.aero_key??'';
-    el('fetch_sec').value=d.fetch_sec??30;
-    el('cycle_sec').value=d.cycle_sec??3;
-    const b=d.brightness??200;
-    el('brightness').value=b;
-    el('bval').textContent=b;
-  }catch(e){showMsg('Could not load config: '+e,'#4a1a1a');}
+ try{const d=await(await fetch('/api/config',{cache:'no-store'})).json();['lat','lon','brightness','fetch_sec','cycle_sec'].forEach(k=>$(k).value=d[k]??'');$('radius').value=d.radius_km??'';$('oskyIdState').textContent=d.opensky_configured?'configured':'';$('oskyState').textContent=d.opensky_configured?'configured':'';$('aeroState').textContent=d.aero_configured?'configured':'';configLoaded=true;}catch(e){$('msg').textContent='Configuration unavailable';}
 }
-
 async function saveConfig(){
-  const btn=el('savebtn');
-  btn.disabled=true;
-  btn.textContent='Saving…';
-  const payload={
-    lat:parseFloat(el('lat').value)||0,
-    lon:parseFloat(el('lon').value)||0,
-    radius_km:Math.max(1,parseFloat(el('radius').value)||50),
-    osky_id:el('osky_id').value,
-    osky_sec:el('osky_sec').value,
-    aero_key:el('aero_key').value,
-    fetch_sec:Math.max(10,parseInt(el('fetch_sec').value)||30),
-    cycle_sec:Math.max(1,parseInt(el('cycle_sec').value)||3),
-    brightness:parseInt(el('brightness').value)
-  };
-  try{
-    const r=await fetch('/api/config',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(payload)
-    });
-    if(r.ok){
-      showMsg('Saved — device rebooting…','#0f2a0f');
-    } else {
-      showMsg('Save failed (HTTP '+r.status+')','#4a1a1a');
-      btn.disabled=false;btn.textContent='Save & Reboot';
-    }
-  }catch(e){
-    showMsg('Save error: '+e,'#4a1a1a');
-    btn.disabled=false;btn.textContent='Save & Reboot';
-  }
+ const p={lat:parseFloat($('lat').value),lon:parseFloat($('lon').value),radius_km:Math.max(1,parseFloat($('radius').value)),fetch_sec:Math.max(10,parseInt($('fetch_sec').value)),cycle_sec:Math.max(1,parseInt($('cycle_sec').value)),brightness:Math.min(255,Math.max(0,parseInt($('brightness').value)))};
+ if($('clear_osky').checked){p.osky_id='';p.osky_sec='';}else{if($('osky_id').value)p.osky_id=$('osky_id').value;if($('osky_sec').value)p.osky_sec=$('osky_sec').value;}
+ if($('clear_aero').checked)p.aero_key=''; else if($('aero_key').value)p.aero_key=$('aero_key').value;
+ $('save').disabled=true;try{const r=await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});$('msg').textContent=r.ok?'Configuration saved. Device rebooting...':'Save failed.';}catch(e){$('msg').textContent='Save failed: '+e;$('save').disabled=false;}
 }
+loadConfig();poll();setInterval(poll,1000);
+</script></body></html>)rawlit";
 
-function showMsg(text,bg){
-  const m=el('msg');m.textContent=text;m.style.background=bg;m.style.display='block';
-}
-
-window.onload=loadConfig;
-</script>
-</body>
-</html>
-)rawlit";
-
-// ── Server implementation ─────────────────────────────────────────────────────
-
-void WebUIServer::begin()
+static String timestampNow()
 {
-  _server.on("/",           HTTP_GET,  [this] { onRoot(); });
-  _server.on("/api/config", HTTP_GET,  [this] { onGetConfig(); });
+  const time_t now = time(nullptr);
+  if (now <= 1000000000L)
+    return String("boot +") + String(millis() / 1000UL) + "s";
+  char out[20];
+  struct tm local = {};
+  localtime_r(&now, &local);
+  strftime(out, sizeof(out), "%H:%M:%S", &local);
+  return String(out);
+}
+
+static String logoName(const String &path)
+{
+  const int slash = path.lastIndexOf('/');
+  return slash >= 0 ? path.substring(slash + 1) : path;
+}
+
+static void addOptionalDouble(JsonObject object, const char *key, double value)
+{
+  if (!isnan(value))
+    object[key] = value;
+}
+
+static void addFlight(JsonObject object, const FlightInfo &flight)
+{
+  object["enriched"] = flight.enriched;
+  object["ident"] = flight.ident;
+  object["ident_icao"] = flight.ident_icao;
+  object["ident_iata"] = flight.ident_iata;
+  object["operator"] = flight.operator_code;
+  object["operator_icao"] = flight.operator_icao;
+  object["operator_iata"] = flight.operator_iata;
+  object["airline"] = flight.airline_display_name_full;
+  object["aircraft_code"] = flight.aircraft_code;
+  object["aircraft_display"] = flight.aircraft_display_name_short;
+  object["icao24"] = flight.icao24;
+  object["origin_country"] = flight.origin_country;
+  object["origin_icao"] = flight.origin.code_icao;
+  object["origin_iata"] = flight.origin.code_iata;
+  object["origin_city"] = flight.origin.city;
+  object["destination_icao"] = flight.destination.code_icao;
+  object["destination_iata"] = flight.destination.code_iata;
+  object["destination_city"] = flight.destination.city;
+  object["actual_out_epoch"] = (unsigned long)flight.actual_out_epoch;
+  object["estimated_in_epoch"] = (unsigned long)flight.estimated_in_epoch;
+  object["time_position"] = flight.time_position;
+  object["last_contact"] = flight.last_contact;
+  object["squawk"] = flight.squawk;
+  object["position_source"] = flight.position_source;
+  object["on_ground"] = flight.on_ground;
+  addOptionalDouble(object, "lat", flight.lat);
+  addOptionalDouble(object, "lon", flight.lon);
+  addOptionalDouble(object, "distance_km", flight.distance_km);
+  addOptionalDouble(object, "bearing_deg", flight.bearing_deg);
+  addOptionalDouble(object, "baro_altitude_m", flight.baro_altitude_m);
+  addOptionalDouble(object, "geo_altitude_m", flight.geo_altitude_m);
+  addOptionalDouble(object, "velocity_mps", flight.velocity_mps);
+  addOptionalDouble(object, "heading_deg", flight.heading_deg);
+  addOptionalDouble(object, "vertical_rate_mps", flight.vertical_rate_mps);
+  if (flight.logo_path.length())
+    object["logo"] = logoName(flight.logo_path);
+}
+
+void WebUIServer::begin(const std::vector<FlightInfo> *flights, const CYDDisplay *display)
+{
+  _flights = flights;
+  _display = display;
+  _server.on("/", HTTP_GET, [this] { onRoot(); });
+  _server.on("/api/config", HTTP_GET, [this] { onGetConfig(); });
   _server.on("/api/config", HTTP_POST, [this] { onPostConfig(); });
-  _server.onNotFound(       [this] { onNotFound(); });
+  _server.on("/api/live", HTTP_GET, [this] { onGetLive(); });
+  _server.on("/api/logo", HTTP_GET, [this] { onGetLogo(); });
+  _server.onNotFound([this] { onNotFound(); });
   _server.begin();
-  DBG_INFO("WebUI: HTTP server listening on port 80");
+  appendEvent("Web dashboard ready; waiting for flight data.");
+  DBG_INFO("WebUI: HTTP dashboard listening on port 80");
 }
 
 void WebUIServer::handle()
 {
   _server.handleClient();
+}
+
+void WebUIServer::appendEvent(const String &message)
+{
+  const String line = timestampNow() + "  " + message;
+  if (_eventCount < EVENT_CAPACITY)
+  {
+    _events[(_eventStart + _eventCount) % EVENT_CAPACITY] = line;
+    _eventCount++;
+    return;
+  }
+  _events[_eventStart] = line;
+  _eventStart = (_eventStart + 1) % EVENT_CAPACITY;
+}
+
+void WebUIServer::recordFetch(const std::vector<StateVector> &states,
+                              const std::vector<FlightInfo> &flights,
+                              size_t enriched)
+{
+  _lastFetchEpoch = time(nullptr);
+  appendEvent(String("OpenSky returned ") + String(states.size()) +
+              " nearby aircraft; AeroAPI enriched " + String(enriched) + ".");
+  size_t count = 0;
+  for (const FlightInfo &flight : flights)
+  {
+    if (count >= 15)
+      break;
+    count++;
+    String event = flight.enriched ? "ENRICHED  " : "LIVE ADS-B  ";
+    event += flight.ident;
+    if (flight.enriched)
+    {
+      String route = flight.origin.code_iata.length() ? flight.origin.code_iata : flight.origin.code_icao;
+      route += " > ";
+      route += flight.destination.code_iata.length() ? flight.destination.code_iata : flight.destination.code_icao;
+      event += "  " + route;
+    }
+    if (!isnan(flight.distance_km))
+      event += "  " + String(flight.distance_km, 1) + "km";
+    if (!isnan(flight.baro_altitude_m))
+      event += "  " + String((long)(flight.baro_altitude_m * 3.28084)) + "ft";
+    if (!isnan(flight.velocity_mps))
+      event += "  " + String((long)(flight.velocity_mps * 3.6)) + "km/h";
+    appendEvent(event);
+  }
+  if (flights.size() > count)
+    appendEvent(String("Additional live aircraft not listed: ") + String(flights.size() - count) + ".");
 }
 
 void WebUIServer::onRoot()
@@ -175,25 +279,25 @@ void WebUIServer::onRoot()
 void WebUIServer::onGetConfig()
 {
   DynamicJsonDocument doc(512);
-  doc["lat"]        = RuntimeConfig::centerLat();
-  doc["lon"]        = RuntimeConfig::centerLon();
-  doc["radius_km"]  = RuntimeConfig::radiusKm();
-  doc["fetch_sec"]  = RuntimeConfig::fetchIntervalSec();
-  doc["cycle_sec"]  = RuntimeConfig::displayCycleSec();
+  doc["lat"] = RuntimeConfig::centerLat();
+  doc["lon"] = RuntimeConfig::centerLon();
+  doc["radius_km"] = RuntimeConfig::radiusKm();
+  doc["fetch_sec"] = RuntimeConfig::fetchIntervalSec();
+  doc["cycle_sec"] = RuntimeConfig::displayCycleSec();
   doc["brightness"] = RuntimeConfig::brightness();
-  doc["osky_id"]    = RuntimeConfig::openskyClientId();
-  doc["osky_sec"]   = RuntimeConfig::openskyClientSecret();
-  doc["aero_key"]   = RuntimeConfig::aeroApiKey();
+  doc["opensky_configured"] =
+      RuntimeConfig::openskyClientId().length() && RuntimeConfig::openskyClientSecret().length();
+  doc["aero_configured"] = RuntimeConfig::aeroApiKey().length() > 0;
 
   String out;
   serializeJson(doc, out);
-  _server.sendHeader("Cache-Control", "no-cache");
+  _server.sendHeader("Cache-Control", "no-cache, no-store");
   _server.send(200, "application/json", out);
 }
 
 void WebUIServer::onPostConfig()
 {
-  String body = _server.arg("plain");
+  const String body = _server.arg("plain");
   if (body.isEmpty())
   {
     _server.send(400, "application/json", "{\"error\":\"empty body\"}");
@@ -201,7 +305,7 @@ void WebUIServer::onPostConfig()
   }
 
   DynamicJsonDocument doc(1024);
-  DeserializationError err = deserializeJson(doc, body);
+  const DeserializationError err = deserializeJson(doc, body);
   if (err)
   {
     DBG_WARN("WebUI: POST JSON parse error: %s", err.c_str());
@@ -209,21 +313,77 @@ void WebUIServer::onPostConfig()
     return;
   }
 
-  if (doc.containsKey("lat"))        RuntimeConfig::setCenterLat(doc["lat"].as<double>());
-  if (doc.containsKey("lon"))        RuntimeConfig::setCenterLon(doc["lon"].as<double>());
-  if (doc.containsKey("radius_km"))  RuntimeConfig::setRadiusKm(doc["radius_km"].as<double>());
-  if (doc.containsKey("fetch_sec"))  RuntimeConfig::setFetchIntervalSec(doc["fetch_sec"].as<uint32_t>());
-  if (doc.containsKey("cycle_sec"))  RuntimeConfig::setDisplayCycleSec(doc["cycle_sec"].as<uint32_t>());
+  if (doc.containsKey("lat")) RuntimeConfig::setCenterLat(doc["lat"].as<double>());
+  if (doc.containsKey("lon")) RuntimeConfig::setCenterLon(doc["lon"].as<double>());
+  if (doc.containsKey("radius_km")) RuntimeConfig::setRadiusKm(doc["radius_km"].as<double>());
+  if (doc.containsKey("fetch_sec")) RuntimeConfig::setFetchIntervalSec(doc["fetch_sec"].as<uint32_t>());
+  if (doc.containsKey("cycle_sec")) RuntimeConfig::setDisplayCycleSec(doc["cycle_sec"].as<uint32_t>());
   if (doc.containsKey("brightness")) RuntimeConfig::setBrightness(doc["brightness"].as<uint8_t>());
-  if (doc.containsKey("osky_id"))    RuntimeConfig::setOpenskyClientId(doc["osky_id"].as<String>());
-  if (doc.containsKey("osky_sec"))   RuntimeConfig::setOpenskyClientSecret(doc["osky_sec"].as<String>());
-  if (doc.containsKey("aero_key"))   RuntimeConfig::setAeroApiKey(doc["aero_key"].as<String>());
+  if (doc.containsKey("osky_id")) RuntimeConfig::setOpenskyClientId(doc["osky_id"].as<String>());
+  if (doc.containsKey("osky_sec")) RuntimeConfig::setOpenskyClientSecret(doc["osky_sec"].as<String>());
+  if (doc.containsKey("aero_key")) RuntimeConfig::setAeroApiKey(doc["aero_key"].as<String>());
 
   RuntimeConfig::save();
-
   _server.send(200, "application/json", "{\"ok\":true}");
-  DBG_INFO("WebUI: config saved — reboot scheduled");
+  DBG_INFO("WebUI: config saved - reboot scheduled");
   _pendingReboot = true;
+}
+
+void WebUIServer::onGetLive()
+{
+  DynamicJsonDocument doc(24576);
+  JsonObject screen = doc.createNestedObject("screen");
+  screen["width"] = _display ? _display->width() : 0;
+  screen["height"] = _display ? _display->height() : 0;
+  const size_t total = _flights ? _flights->size() : 0;
+  const size_t index = total && _display ? _display->currentFlightIndex() % total : 0;
+  screen["total"] = total;
+  screen["index"] = index;
+  if (total)
+    addFlight(screen.createNestedObject("flight"), (*_flights)[index]);
+
+  JsonArray selected = doc.createNestedArray("enriched");
+  if (_flights)
+  {
+    size_t count = 0;
+    for (const FlightInfo &flight : *_flights)
+    {
+      if (!flight.enriched || count >= 5)
+        continue;
+      addFlight(selected.createNestedObject(), flight);
+      count++;
+    }
+  }
+
+  JsonArray events = doc.createNestedArray("events");
+  for (size_t i = 0; i < _eventCount; i++)
+    events.add(_events[(_eventStart + i) % EVENT_CAPACITY]);
+  doc["last_fetch"] = (unsigned long)_lastFetchEpoch;
+
+  String out;
+  serializeJson(doc, out);
+  _server.sendHeader("Cache-Control", "no-cache, no-store");
+  _server.send(200, "application/json", out);
+}
+
+void WebUIServer::onGetLogo()
+{
+  const String name = _server.arg("name");
+  if (name.indexOf('/') >= 0 || name.indexOf("..") >= 0 || !name.endsWith(".jpg"))
+  {
+    _server.send(400, "text/plain", "Invalid logo");
+    return;
+  }
+  const String path = String("/logos/") + name;
+  File file = LittleFS.open(path, "r");
+  if (!file)
+  {
+    _server.send(404, "text/plain", "Logo not found");
+    return;
+  }
+  _server.sendHeader("Cache-Control", "public, max-age=86400");
+  _server.streamFile(file, "image/jpeg");
+  file.close();
 }
 
 void WebUIServer::onNotFound()

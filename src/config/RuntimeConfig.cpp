@@ -42,6 +42,9 @@ void RuntimeConfig::load()
 
   DBG_INFO("RuntimeConfig loaded: lat=%.4f lon=%.4f r=%.0fkm fetch=%us cycle=%us bright=%u",
            s_centerLat, s_centerLon, s_radiusKm, s_fetchSec, s_cycleSec, s_brightness);
+  DBG_INFO("RuntimeConfig APIs: OpenSky=%s AeroAPI=%s",
+           s_openskyId.length() && s_openskySecret.length() ? "configured" : "missing",
+           s_aeroApiKey.length() ? "configured" : "missing");
 }
 
 void RuntimeConfig::save()

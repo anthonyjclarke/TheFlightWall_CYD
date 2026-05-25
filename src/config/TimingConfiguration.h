@@ -4,6 +4,9 @@
 
 namespace TimingConfiguration
 {
+    // POSIX timezone for local serial timestamps; includes Sydney DST changes.
+    static constexpr const char *LOCAL_TIMEZONE = "AEST-10AEDT,M10.1.0,M4.1.0/3";
+
     // OpenSky free tier ≈ 4 000 requests/month — 30s gives ~86 000/month at peak
     static constexpr uint32_t FETCH_INTERVAL_SECONDS = 30;
 

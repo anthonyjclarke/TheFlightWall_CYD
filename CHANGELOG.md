@@ -5,9 +5,28 @@
 ## Todo
 
 - **Visual map for flight location** — overlay a bearing arc or mini-map showing the aircraft position relative to the configured home point on the TFT
-- **Enhance WebUI** — extend the runtime configuration page with additional fields, live flight status, and improved UX
 - **Startup TFT display more informative of what is happening, not just "Searching"**
-- **WebUI live flight display** — show current enriched flight information in the web interface
+
+---
+
+## [0.13.0] 25-05-2026
+
+### Added
+- **Live operations dashboard WebUI**: the embedded web interface now provides a low-overhead browser-rendered TFT mirror, an in-memory scrolling flight data feed, and detailed panels for up to five currently enriched flights. New `GET /api/live` and cached-logo `GET /api/logo` endpoints supply the live dashboard data.
+- **Local diagnostic timestamps**: debug output is prefixed with local Australia/Sydney time after NTP synchronises, with boot elapsed-time prefixes available before synchronization.
+- **Flight pipeline diagnostics**: runtime credential-presence, OpenSky query/filter counts and flight-card/enrichment totals are logged without disclosing secrets.
+
+### Fixed
+- **Live aircraft lost when enrichment was skipped**: accepted OpenSky state vectors now always produce ADS-B fallback cards, including invalid/unavailable callsigns and aircraft outside the per-cycle AeroAPI call allowance. The request limit now limits enrichment only rather than discarding displayable traffic.
+- **Stale AeroAPI records selected for live aircraft**: matching now accepts only active, very recently arrived, or bounded no-arrival-time records. A historical record such as the CFH3 departure reported more than 70 hours earlier is rejected and leaves a live ADS-B-only card instead of showing a false route.
+- **Timezone-dependent ISO conversion**: AeroAPI timestamps are converted to UTC without relying on the configured local timezone, allowing local debug timestamps without changing schedule calculations.
+- **Credential exposure in WebUI**: `GET /api/config` returns configured/not-configured flags instead of stored OpenSky or AeroAPI credential values. Credential edits remain write-only with explicit clearing support.
+
+### Changed
+- Runtime configuration defaults expand the local search radius from 10 km to 15 km.
+- `FlightInfo` now carries extended ADS-B identity, position, observation and transponder fields used by the live dashboard.
+- OpenSky requests use explicit request timeouts and provide more useful live-query logging.
+- The dashboard mirrors the TFT through browser rendering rather than framebuffer capture to avoid additional ESP32 SPI readback and image-transfer cost.
 
 ---
 

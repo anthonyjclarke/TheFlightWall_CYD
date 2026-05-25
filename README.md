@@ -2,6 +2,8 @@
 
 PlatformIO firmware for the CYD (TFT) variant of TheFlightWall. The current root-level project targets ESP32 "Cheap Yellow Display" boards rather than the original LED matrix build.
 
+Current release: **v0.13.0** (25 May 2026)
+
 ---
 
 ## Current status
@@ -13,6 +15,8 @@ PlatformIO firmware for the CYD (TFT) variant of TheFlightWall. The current root
 - Flight route/aircraft enrichment: FlightAware AeroAPI
 - Friendly airline/aircraft labels: FlightWall CDN lookup files
 - Display behavior: cached flight list cycles independently of the network fetch interval
+- Web dashboard: browser-rendered TFT mirror, volatile live feed, enriched-flight detail and configuration
+- Diagnostic output: local Australia/Sydney timestamps after NTP sync, boot elapsed time before sync
 - Live no-extra-cost metrics shown from OpenSky: distance, bearing, altitude/flight level, speed, heading, climb/descent, and ground state
 
 ---
@@ -23,6 +27,8 @@ PlatformIO firmware for the CYD (TFT) variant of TheFlightWall. The current root
 - Enriches callsigns with route, aircraft type, and operator details via FlightAware AeroAPI.
 - Looks up friendly airline and aircraft display names from the FlightWall CDN.
 - Renders cycling flight cards on CYD TFT displays.
+- Serves an embedded operational dashboard at the device IP address.
+- Keeps an in-memory scrolling log of the latest API-derived flight activity.
 - Shows live ADS-B metrics without adding API cost:
   distance/cardinal bearing, altitude or flight level, speed, heading, climb/descent, and ground state.
 
@@ -38,12 +44,12 @@ PlatformIO firmware for the CYD (TFT) variant of TheFlightWall. The current root
 | `src/adapters/AeroAPIFetcher` | AeroAPI `/flights/{ident}` — route, aircraft, operator |
 | `src/adapters/FlightWallFetcher` | CDN airline/aircraft display-name lookup |
 | `src/adapters/CYDDisplay` | TFT_eSPI flight card — callsign, route, status lines, progress bar |
-| `src/adapters/WebUIServer` | HTTP server (port 80) — runtime configuration WebUI |
+| `src/adapters/WebUIServer` | HTTP server (port 80) — live dashboard, JSON API, logo serving and runtime configuration |
 | `src/config/` | `UserConfiguration`, `APIConfiguration`, `TimingConfiguration`, `HardwareConfiguration`, `RuntimeConfig` |
 | `src/interfaces/` | `BaseDisplay`, `BaseFlightFetcher`, `BaseStateVectorFetcher` |
 | `src/models/` | `FlightInfo`, `StateVector`, `AirportInfo` |
 | `src/utils/GeoUtils.h` | Haversine distance and bearing calculations |
-| `include/debug.h` | Leveled macros: `DBG_ERROR` / `DBG_WARN` / `DBG_INFO` / `DBG_VERBOSE` |
+| `include/debug.h` | Leveled, locally timestamped macros: `DBG_ERROR` / `DBG_WARN` / `DBG_INFO` / `DBG_VERBOSE` |
 
 ---
 
@@ -86,6 +92,29 @@ Each flight card is styled to match the commercial FlightWall product display. L
 When AeroAPI enrichment is unavailable for a flight (rate-limited, no response, or API key absent), the card still displays using live ADS-B data only: callsign, altitude, speed, heading, distance, and bearing. Route and status lines are omitted for ADS-B-only cards.
 
 The display cycle is independent of network fetching. If a fetch is slow, rate-limited, or returns no results, the display keeps cycling the last good flight list rather than freezing or blanking.
+
+## Web dashboard
+
+Once WiFi is connected, open `http://<device-ip>/` in a browser. The dashboard is embedded in firmware and has no external web dependencies.
+
+| Panel | Behaviour |
+|:------|:----------|
+| TFT Mirror | Browser-rendered replica of the currently selected display card, synchronized with the card index shown on the TFT. It deliberately avoids reading back and transmitting literal framebuffer pixels, which would add SPI and network overhead to the ESP32 render loop. |
+| Flight Data Feed | Scrolling feed of fetch results and live aircraft observations. It stores the last 50 entries in RAM only and clears on reboot. |
+| Enriched Flight Intelligence | Up to five current AeroAPI-matched flights with route, operator, aircraft, schedule and extended ADS-B fields that do not fit on the TFT. |
+| Device Configuration | Runtime location, timing, brightness and API credential updates stored in NVS with save-and-reboot behaviour. |
+
+Dashboard endpoints:
+
+| Endpoint | Purpose |
+|:---------|:--------|
+| `GET /` | Embedded dashboard application |
+| `GET /api/live` | Current screen selection, enriched flights and volatile activity feed |
+| `GET /api/logo?name=<file>.jpg` | Cached LittleFS airline-logo image for the mirror |
+| `GET /api/config` | Non-sensitive runtime configuration and credential-configured flags |
+| `POST /api/config` | Persist runtime settings and reboot; blank credential fields preserve the stored value unless explicitly cleared |
+
+Credentials are write-only in the WebUI: stored OpenSky secrets and AeroAPI keys are never returned by `GET /api/config`.
 
 ---
 
@@ -132,7 +161,7 @@ client_secret=<SECRET_OPENSKY_CLIENT_SECRET>
 
 The returned access token is cached and refreshed automatically with a 60-second safety margin. If OpenSky returns `401 Unauthorized`, the firmware refreshes the token once and retries the state-vector request.
 
-The state-vector request is a bounding-box query around `UserConfiguration::CENTER_LAT`, `CENTER_LON`, and `RADIUS_KM`:
+The state-vector request is a bounding-box query around runtime-configured center latitude, center longitude and radius (falling back to `UserConfiguration` defaults):
 
 ```text
 https://opensky-network.org/api/states/all?lamin=...&lamax=...&lomin=...&lomax=...
@@ -171,6 +200,8 @@ Every enriched flight can cost an AeroAPI request. If five nearby aircraft have 
 
 The firmware parses only the fields it needs from the AeroAPI response to reduce ESP32 heap pressure. Large AeroAPI responses previously caused ArduinoJson `NoMemory` parse errors; the current parser uses a filter for route, operator, aircraft, and identifier fields.
 
+An AeroAPI callsign can return historical and future records as well as the live flight. The firmware now selects only a record whose timing is plausible for the aircraft currently in range: an in-progress flight, a flight that arrived in the last 30 minutes, or a bounded no-arrival-time case. Historical responses such as a departure more than 70 hours old are rejected and the aircraft remains visible as an ADS-B-only card instead of displaying a false route.
+
 `HTTP 429` means the AeroAPI key is valid but the account is being rate-limited or has exhausted quota. The firmware will continue displaying the last successful flight list, but fewer new flights may be enriched until quota recovers.
 
 Useful AeroAPI references:
@@ -203,16 +234,24 @@ The following fields are taken from the OpenSky `/states/all` response and there
 | `heading` | Track/heading in degrees |
 | `vertical_rate` | `UP` / `DN` climb/descent indicator |
 | `on_ground` | `GROUND` status |
+| `icao24`, `time_position`, `last_contact` | Identity and observation timing in the dashboard detail view |
+| `latitude`, `longitude` | Last live position in the dashboard detail view |
+| `squawk`, `position_source` | Transponder/source detail in the dashboard detail view |
 
 ### Testing credentials
 
 Use `DEBUG_LEVEL=3` or `DEBUG_LEVEL=4` in `platformio.ini` while bringing up credentials. Useful serial messages:
 
+- `[YYYY-MM-DD HH:MM:SS] [INFO] ...` confirms NTP synchronization and local Australia/Sydney debug timestamps; before sync messages use `[boot +Ns]`.
+- `RuntimeConfig: OpenSky configured=... AeroAPI configured=...` confirms that credentials are populated without logging their values.
+- `OpenSky: query center=... radius=... bbox=...` and `OpenSky: raw states=... in_radius=...` confirm the requested region and filter result.
+- `FlightData: states=... cards=... aero_calls=... enriched=...` distinguishes missing live aircraft from missing enrichment.
 - `OpenSky: token obtained` means OAuth succeeded.
 - `OpenSky: token POST failed` usually means the OpenSky client ID/secret is wrong, missing, or copied from the wrong OpenSky interface.
 - `AeroAPI: no API key configured` means `SECRET_AEROAPI_KEY` is blank or `include/secrets.h` was not found.
 - `AeroAPI: HTTP 401` or `403` usually means the AeroAPI key is invalid, disabled, or not authorised for the endpoint.
 - `AeroAPI: HTTP 429` indicates rate limiting or exhausted quota.
+- `AeroAPI: <ident> no active match in ... records` means live ADS-B was received but all route records were stale or otherwise implausible; the ADS-B-only card remains available.
 
 If `include/secrets.h` exists but credentials still appear blank, check that it is under `include/`, not the project root, and that each `#define` is above any accidental `#ifdef` or comment block.
 
@@ -224,7 +263,7 @@ If `include/secrets.h` exists but credentials still appear blank, check that it 
 - AeroAPI enrichment runs per-callsign; each unique flight costs one API call per fetch cycle.
 - `FETCH_INTERVAL_SECONDS` controls both OpenSky polling and downstream enrichment frequency; tune it for your API quotas.
 - `DISPLAY_CYCLE_SECONDS` controls how long each cached flight card stays on screen.
-- Debug output is controlled via the `-DDEBUG_LEVEL=N` build flag (default 3 = INFO).
+- Debug output is controlled via the `-DDEBUG_LEVEL=N` build flag (default 3 = INFO) and switches to local Australia/Sydney timestamps after NTP sync.
 
 ---
 

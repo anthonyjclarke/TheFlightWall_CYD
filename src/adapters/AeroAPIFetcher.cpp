@@ -18,9 +18,23 @@ static String safeGetString(JsonVariant v, const char *key)
     return String(v[key].as<const char *>());
 }
 
+static time_t utcCalendarToEpoch(const struct tm &t)
+{
+    int year = t.tm_year + 1900;
+    const int month = t.tm_mon + 1;
+    const int day = t.tm_mday;
+    year -= month <= 2;
+    const int era = (year >= 0 ? year : year - 399) / 400;
+    const int yearOfEra = year - era * 400;
+    const int dayOfYear = (153 * (month + (month > 2 ? -3 : 9)) + 2) / 5 + day - 1;
+    const int dayOfEra = yearOfEra * 365 + yearOfEra / 4 - yearOfEra / 100 + dayOfYear;
+    const int daysSinceEpoch = era * 146097 + dayOfEra - 719468;
+    return (time_t)daysSinceEpoch * 86400L +
+           (time_t)t.tm_hour * 3600L + (time_t)t.tm_min * 60L + t.tm_sec;
+}
+
 // Parses ISO 8601 timestamps (with or without timezone offset) → UTC epoch.
 // Handles "2026-05-25T08:00:00+08:00", "...Z", and "...T08:00:00" (no offset).
-// Requires the system clock to be set to UTC (via configTime(0,0,...)).
 static time_t parseIso8601(const char *s)
 {
     if (!s || !*s) return 0;
@@ -42,8 +56,30 @@ static time_t parseIso8601(const char *s)
         sscanf(p + 1, "%2d:%2d", &tzH, &tzM);
         tzOffsetSec = (tzH * 3600 + tzM * 60) * ((*p == '+') ? 1 : -1);
     }
-    // mktime treats struct tm as local time; with configTime(0,0,...) local=UTC.
-    return mktime(&t) - tzOffsetSec;
+    // The parser must remain UTC even though serial diagnostics use local time.
+    return utcCalendarToEpoch(t) - tzOffsetSec;
+}
+
+static time_t flightDepartureEpoch(JsonObject flight)
+{
+    const char *timestamp = !flight["actual_out"].isNull()
+                                ? flight["actual_out"].as<const char *>()
+                                : (!flight["scheduled_out"].isNull()
+                                       ? flight["scheduled_out"].as<const char *>()
+                                       : nullptr);
+    return parseIso8601(timestamp);
+}
+
+static time_t flightArrivalEpoch(JsonObject flight)
+{
+    const char *timestamp = !flight["actual_in"].isNull()
+                                ? flight["actual_in"].as<const char *>()
+                                : (!flight["estimated_in"].isNull()
+                                       ? flight["estimated_in"].as<const char *>()
+                                       : (!flight["scheduled_in"].isNull()
+                                              ? flight["scheduled_in"].as<const char *>()
+                                              : nullptr));
+    return parseIso8601(timestamp);
 }
 
 bool AeroAPIFetcher::fetchFlightInfo(const String &flightIdent, FlightInfo &outInfo)
@@ -107,6 +143,7 @@ bool AeroAPIFetcher::fetchFlightInfo(const String &flightIdent, FlightInfo &outI
     filter["flights"][0]["destination"]["city"] = true;
     filter["flights"][0]["actual_out"] = true;
     filter["flights"][0]["scheduled_out"] = true;
+    filter["flights"][0]["actual_in"] = true;
     filter["flights"][0]["estimated_in"] = true;
     filter["flights"][0]["scheduled_in"] = true;
 
@@ -129,32 +166,66 @@ bool AeroAPIFetcher::fetchFlightInfo(const String &flightIdent, FlightInfo &outI
         return false;
     }
 
-    // AeroAPI returns flights sorted by scheduled_out descending (newest first).
-    // flights[0] may be a future scheduled departure rather than the airborne flight.
-    // Select the entry with the most recent departure that is still in the past.
-    // Falls back to index 0 when NTP is unavailable or all entries are future.
-    int bestIdx = 0;
     const time_t nowSel = time(nullptr);
-    if (nowSel > 1000000000L && flights.size() > 1)
+    if (nowSel <= 1000000000L)
     {
-        time_t bestDep = 0;
-        for (int i = 0; i < (int)flights.size(); i++)
-        {
-            JsonObject fi = flights[i].as<JsonObject>();
-            const char *ds = !fi["actual_out"].isNull()   ? fi["actual_out"].as<const char *>()
-                           : !fi["scheduled_out"].isNull() ? fi["scheduled_out"].as<const char *>()
-                           : nullptr;
-            if (!ds) continue;
-            time_t dep = parseIso8601(ds);
-            if (dep > 0 && dep <= nowSel && dep > bestDep)
-            {
-                bestDep = dep;
-                bestIdx = i;
-            }
-        }
-        DBG_INFO("AeroAPI: %s — %d records, selected idx=%d (dep_epoch=%lu)",
-                 flightIdent.c_str(), (int)flights.size(), bestIdx, (unsigned long)bestDep);
+        DBG_WARN("AeroAPI: cannot select active record for %s before time sync",
+                 flightIdent.c_str());
+        return false;
     }
+
+    // A callsign can be reused and AeroAPI returns historical legs. Select only
+    // a leg plausibly associated with an aircraft detected live by OpenSky now.
+    static constexpr time_t ARRIVAL_GRACE_SECONDS = 30 * 60;
+    static constexpr time_t MAX_UNKNOWN_ARRIVAL_AGE_SECONDS = 20 * 60 * 60;
+    int bestIdx = -1;
+    int bestRank = 0;
+    time_t bestDep = 0;
+    time_t bestArr = 0;
+    time_t newestPastDep = 0;
+    time_t newestPastArr = 0;
+
+    for (int i = 0; i < (int)flights.size(); i++)
+    {
+        JsonObject candidate = flights[i].as<JsonObject>();
+        const time_t dep = flightDepartureEpoch(candidate);
+        if (dep <= 0 || dep > nowSel)
+            continue;
+
+        const time_t arr = flightArrivalEpoch(candidate);
+        if (dep > newestPastDep)
+        {
+            newestPastDep = dep;
+            newestPastArr = arr;
+        }
+
+        const bool notYetArrived = arr > 0 && nowSel <= arr;
+        const bool justArrived = arr > 0 && nowSel <= arr + ARRIVAL_GRACE_SECONDS;
+        const bool recentWithoutArrival =
+            arr == 0 && nowSel - dep <= MAX_UNKNOWN_ARRIVAL_AGE_SECONDS;
+        const int rank = notYetArrived ? 2 : ((justArrived || recentWithoutArrival) ? 1 : 0);
+        if (rank > bestRank || (rank == bestRank && rank > 0 && dep > bestDep))
+        {
+            bestRank = rank;
+            bestIdx = i;
+            bestDep = dep;
+            bestArr = arr;
+        }
+    }
+
+    if (bestIdx < 0)
+    {
+        DBG_WARN("AeroAPI: %s no active match in %d records; newest departure age=%ldmin arrival_delta=%ldmin",
+                 flightIdent.c_str(), (int)flights.size(),
+                 newestPastDep > 0 ? (long)(nowSel - newestPastDep) / 60 : -1L,
+                 newestPastArr > 0 ? (long)(newestPastArr - nowSel) / 60 : -1L);
+        return false;
+    }
+
+    DBG_INFO("AeroAPI: %s - %d records, selected idx=%d (dep_delta=%ldmin arr_delta=%ldmin)",
+             flightIdent.c_str(), (int)flights.size(), bestIdx,
+             (long)(bestDep - nowSel) / 60,
+             bestArr > 0 ? (long)(bestArr - nowSel) / 60 : -1L);
 
     JsonObject f = flights[bestIdx].as<JsonObject>();
     outInfo.ident = safeGetString(f, "ident");
@@ -195,10 +266,12 @@ bool AeroAPIFetcher::fetchFlightInfo(const String &flightIdent, FlightInfo &outI
                  (long)(outInfo.actual_out_epoch - nowSel) / 60);
     }
 
-    // Arrival: prefer estimated_in, fall back to scheduled_in
-    const char *arrStr = (!f["estimated_in"].isNull())
+    // Arrival: prefer actual_in, then estimated_in, then scheduled_in
+    const char *arrStr = (!f["actual_in"].isNull())
+                         ? f["actual_in"].as<const char *>()
+                         : (!f["estimated_in"].isNull()
                          ? f["estimated_in"].as<const char *>()
-                         : (!f["scheduled_in"].isNull() ? f["scheduled_in"].as<const char *>() : nullptr);
+                         : (!f["scheduled_in"].isNull() ? f["scheduled_in"].as<const char *>() : nullptr));
     if (arrStr)
     {
         outInfo.estimated_in_epoch = parseIso8601(arrStr);

@@ -7,6 +7,9 @@
 
 struct FlightInfo
 {
+    // True when the live state was matched to a current AeroAPI flight record.
+    bool enriched = false;
+
     // Flight identifiers
     String ident;
     String ident_icao;
@@ -26,7 +29,11 @@ struct FlightInfo
 
     // Live ADS-B state from OpenSky. These fields come from the state-vector
     // query already being made and do not require additional API calls.
+    String icao24;
     String origin_country;
+    long time_position = 0;
+    double lon = NAN;
+    double lat = NAN;
     double distance_km = NAN;
     double bearing_deg = NAN;
     double baro_altitude_m = NAN;
@@ -35,6 +42,8 @@ struct FlightInfo
     double heading_deg = NAN;
     double vertical_rate_mps = NAN;
     long last_contact = 0;
+    String squawk;
+    int position_source = 0;
     bool on_ground = false;
 
     // Human-friendly display strings

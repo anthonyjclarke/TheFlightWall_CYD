@@ -35,19 +35,34 @@ size_t FlightDataFetcher::fetchFlights(std::vector<StateVector> &outStates,
 
     for (const StateVector &s : outStates)
     {
-        if (aeroCallCount >= TimingConfiguration::MAX_AEROAPI_CALLS_PER_CYCLE)
-            break;
-
         // Trim trailing spaces (OpenSky pads callsigns to 8 chars).
         String callsign = s.callsign;
         callsign.trim();
 
+        FlightInfo info;
+        info.ident = callsign.length() ? callsign : s.icao24;
+
+        // The ADS-B card is displayable even when AeroAPI enrichment is unavailable.
+        info.icao24            = s.icao24;
+        info.origin_country    = s.origin_country;
+        info.time_position     = s.time_position;
+        info.lon               = s.lon;
+        info.lat               = s.lat;
+        info.distance_km       = s.distance_km;
+        info.bearing_deg       = s.bearing_deg;
+        info.baro_altitude_m   = s.baro_altitude;
+        info.geo_altitude_m    = s.geo_altitude;
+        info.velocity_mps      = s.velocity;
+        info.heading_deg       = s.heading;
+        info.vertical_rate_mps = s.vertical_rate;
+        info.last_contact      = s.last_contact;
+        info.squawk            = s.squawk;
+        info.position_source   = s.position_source;
+        info.on_ground         = s.on_ground;
+
         // A valid ICAO flight-number callsign is 3-letter airline prefix + digits.
         // Reject: too short, no digit, embedded space, or < 3 leading alpha chars
         // ("VV922" fails the prefix check; "DELTA" fails no-digit; "RED O" fails space).
-        if (callsign.length() < 3)
-            continue;
-
         bool hasDigit = false;
         bool hasEmbeddedSpace = false;
         size_t alphaPrefix = 0;
@@ -58,60 +73,63 @@ size_t FlightDataFetcher::fetchFlights(std::vector<StateVector> &outStates,
             if (c == ' ')                             hasEmbeddedSpace = true;
             if (!hasDigit && isalpha((unsigned char)c)) alphaPrefix++;
         }
-        if (!hasDigit || hasEmbeddedSpace || alphaPrefix < 3)
+        const bool canEnrich = callsign.length() >= 3 &&
+                               hasDigit && !hasEmbeddedSpace && alphaPrefix >= 3;
+        if (!canEnrich)
         {
-            DBG_VERBOSE("Skip '%s' — not a valid ICAO flight number", callsign.c_str());
+            DBG_VERBOSE("Display '%s' without AeroAPI enrichment: invalid flight callsign",
+                        info.ident.c_str());
+            outFlights.push_back(info);
             continue;
         }
 
-        aeroCallCount++;
-        FlightInfo info;
-        info.ident = callsign; // minimum ident; overwritten by AeroAPI on success
-
-        // Always copy live ADS-B state so the card is useful even when AeroAPI fails.
-        info.origin_country    = s.origin_country;
-        info.distance_km       = s.distance_km;
-        info.bearing_deg       = s.bearing_deg;
-        info.baro_altitude_m   = s.baro_altitude;
-        info.geo_altitude_m    = s.geo_altitude;
-        info.velocity_mps      = s.velocity;
-        info.heading_deg       = s.heading;
-        info.vertical_rate_mps = s.vertical_rate;
-        info.last_contact      = s.last_contact;
-        info.on_ground         = s.on_ground;
-
-        if (_flightFetcher->fetchFlightInfo(callsign, info))
+        if (aeroCallCount < TimingConfiguration::MAX_AEROAPI_CALLS_PER_CYCLE)
         {
-            FlightWallFetcher fw;
-            if (info.operator_icao.length())
+            aeroCallCount++;
+            if (_flightFetcher->fetchFlightInfo(callsign, info))
             {
-                String airlineFull;
-                uint16_t airlineColor;
-                if (fw.getAirlineData(info.operator_icao, airlineFull, airlineColor))
+                info.enriched = true;
+                FlightWallFetcher fw;
+                if (info.operator_icao.length())
                 {
-                    info.airline_display_name_full = airlineFull;
-                    info.airline_color = airlineColor;
-                }
-
-                String logoPath;
-                if (fw.getAirlineLogo(info.operator_icao, info.operator_iata, logoPath))
-                    info.logo_path = logoPath;
-            }
-            if (info.aircraft_code.length())
-            {
-                String aircraftShort, aircraftFull;
-                if (fw.getAircraftName(info.aircraft_code, aircraftShort, aircraftFull))
-                {
-                    if (aircraftShort.length())
+                    String airlineFull;
+                    uint16_t airlineColor;
+                    if (fw.getAirlineData(info.operator_icao, airlineFull, airlineColor))
                     {
-                        info.aircraft_display_name_short = aircraftShort;
+                        info.airline_display_name_full = airlineFull;
+                        info.airline_color = airlineColor;
+                    }
+
+                    String logoPath;
+                    if (fw.getAirlineLogo(info.operator_icao, info.operator_iata, logoPath))
+                        info.logo_path = logoPath;
+                }
+                if (info.aircraft_code.length())
+                {
+                    String aircraftShort, aircraftFull;
+                    if (fw.getAircraftName(info.aircraft_code, aircraftShort, aircraftFull))
+                    {
+                        if (aircraftShort.length())
+                        {
+                            info.aircraft_display_name_short = aircraftShort;
+                        }
                     }
                 }
+                enriched++;
             }
-            enriched++;
+        }
+        else
+        {
+            DBG_VERBOSE("Display '%s' without AeroAPI enrichment: cycle API limit reached",
+                        callsign.c_str());
         }
 
         outFlights.push_back(info);
     }
+    DBG_INFO("FlightData: states=%u cards=%u aero_calls=%u enriched=%u",
+             (unsigned)outStates.size(),
+             (unsigned)outFlights.size(),
+             (unsigned)aeroCallCount,
+             (unsigned)enriched);
     return enriched;
 }

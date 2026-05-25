@@ -5,6 +5,7 @@
 #include <LittleFS.h>
 #include "debug.h"
 #include "RuntimeConfig.h"
+#include "TimingConfiguration.h"
 #include "HardwareConfiguration.h"
 #include "OpenSkyFetcher.h"
 #include "AeroAPIFetcher.h"
@@ -63,7 +64,7 @@ static void initWiFi()
 
 static void initTime()
 {
-  configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+  configTzTime(TimingConfiguration::LOCAL_TIMEZONE, "pool.ntp.org", "time.nist.gov");
   DBG_INFO("Waiting for NTP sync...");
   time_t t = 0;
   const unsigned long start = millis();
@@ -73,7 +74,7 @@ static void initTime()
     t = time(nullptr);
   }
   if (t > 1000000000UL)
-    DBG_INFO("NTP synced: epoch=%lu", (unsigned long)t);
+    DBG_INFO("NTP synced: epoch=%lu timezone=Australia/Sydney", (unsigned long)t);
   else
     DBG_WARN("NTP sync timed out — flight status lines unavailable");
 }
@@ -87,7 +88,7 @@ void setup()
   initDisplay();
   initWiFi();
   initTime();
-  g_webUI.begin();
+  g_webUI.begin(&g_flights, &g_display);
   g_fetcher = new FlightDataFetcher(&g_openSky, &g_aeroApi);
   g_display.showLoading();
   DBG_INFO("Free heap: %u bytes", ESP.getFreeHeap());
@@ -152,6 +153,7 @@ void loop()
       g_states.clear();
     }
 
+    g_webUI.recordFetch(states, flights, enriched);
     g_lastFetchMs = millis();
   }
 

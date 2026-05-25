@@ -19,6 +19,10 @@ public:
     void displayMessage(const String &message)          override;
     void showLoading()                                   override;
 
+    size_t currentFlightIndex() const { return _currentFlightIndex; }
+    uint16_t width() const { return _w; }
+    uint16_t height() const { return _h; }
+
 private:
     TFT_eSPI *_tft = nullptr;
     uint16_t  _w   = 0;

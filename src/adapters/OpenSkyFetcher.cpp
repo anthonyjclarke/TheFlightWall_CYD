@@ -207,14 +207,20 @@ static bool parseStatesPayload(const String &payload, double centerLat, double c
 
     JsonArray states = doc["states"].as<JsonArray>();
     if (states.isNull())
+    {
+        DBG_INFO("OpenSky: response contains no state vectors");
         return true; // no states is not an error
+    }
 
+    const size_t acceptedBefore = out.size();
     for (JsonVariant v : states)
     {
         StateVector s;
         if (parseStateVector(v, centerLat, centerLon, radiusKm, s))
             out.push_back(s);
     }
+    DBG_INFO("OpenSky: raw states=%u in_radius=%u",
+             (unsigned)states.size(), (unsigned)(out.size() - acceptedBefore));
     return true;
 }
 
@@ -237,9 +243,12 @@ bool OpenSkyFetcher::fetchStateVectors(double centerLat,
                  "&lamax=" + String(latMax, 6) +
                  "&lomin=" + String(lonMin, 6) +
                  "&lomax=" + String(lonMax, 6);
+    DBG_INFO("OpenSky: query center=%.5f,%.5f radius=%.1fkm bbox=%.5f,%.5f to %.5f,%.5f",
+             centerLat, centerLon, radiusKm, latMin, lonMin, latMax, lonMax);
 
     HTTPClient http;
     http.begin(url);
+    http.setTimeout(15000);
     http.addHeader("Authorization", String("Bearer ") + m_accessToken);
 
     int code = http.GET();
@@ -255,6 +264,7 @@ bool OpenSkyFetcher::fetchStateVectors(double centerLat,
         }
         HTTPClient retry;
         retry.begin(url);
+        retry.setTimeout(15000);
         retry.addHeader("Authorization", String("Bearer ") + m_accessToken);
         code = retry.GET();
         if (code != 200)
