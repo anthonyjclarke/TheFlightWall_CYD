@@ -4,8 +4,36 @@
 
 ## Todo
 
+### Features
 - **Visual map for flight location** — overlay a bearing arc or mini-map showing the aircraft position relative to the configured home point on the TFT
-- **Startup TFT display more informative of what is happening, not just "Searching"**
+- **Startup TFT display more informative of what is happening, not just "Searching"** — show OpenSky/AeroAPI step state, last fetch result and credit/quota indication
+- **Touch input on CYD XPT2046** — currently unused; could drive card-next / pause / detail overlay
+- **Per-airline accent colour** — FlightWall CDN dropped `brand_color_hex`; either embed a small static palette by ICAO or compute a dominant colour from the cached JPEG logo so cards stop being uniformly white
+
+### Code optimisations (future revisions)
+- [ ] `FlightWallFetcher::getAirlineData` — remove or repurpose the dead `brand_color_hex` parsing path; the CDN no longer returns the field
+- [ ] `FlightDataFetcher::fetchFlights` — hoist `FlightWallFetcher fw` out of the per-flight loop and consider reusing a single `WiFiClientSecure` across airline/aircraft/logo calls to amortise TLS handshakes
+- [ ] `FlightWallFetcher::getAirlineLogo` — simplify the duplicate-skip clause `(i == 1 && code == airlineIcao)`; an `if (codes[i] == codes[i-1]) continue;` is clearer
+- [ ] Replace `client.setInsecure()` (AeroAPI + FlightWall + logo proxy) with pinned CA root certificates or fingerprint validation for production
+- [ ] `AeroAPIFetcher` — call `time(nullptr)` once per request and reuse; current code reads it several times within `fetchFlightInfo`
+- [ ] `AeroAPIFetcher` — consider migrating to ArduinoJson v7 streaming or a tighter custom parser to drop the 16 KB `DynamicJsonDocument` (largest single heap allocation in the request path)
+- [ ] `WebUIServer::onGetLive` — currently allocates a 24 KB `DynamicJsonDocument` plus a `String` serialisation buffer; stream JSON directly to the response or use `WebServer::sendContent()` in chunks
+- [ ] `WebUIServer::onGetLogo` — restrict the `name` argument to `[A-Z0-9]{2,4}\.jpg` rather than the looser current check (`indexOf('/')`, `..`, `.jpg` suffix); reduces attack surface even on LAN
+- [ ] Add LRU / size cap to `/logos/` LittleFS cache so a long-lived device with diverse traffic does not exhaust the SPIFFS partition
+- [ ] `parseIso8601` — fold the two `sscanf` calls into a single pass; minor but it runs per record per fetch cycle
+- [ ] `RuntimeConfig::save` — write only changed keys to reduce NVS wear on configuration POSTs
+- [ ] `OpenSkyFetcher` token expiry uses `millis()` — survives ~49-day wrap by arithmetic but triggers an unnecessary refresh at wrap; switch to `time(nullptr)` after NTP sync
+- [ ] Watchdog — enable the task / interrupt watchdog and feed it from the main loop so a hung HTTP call resets rather than wedges
+- [ ] `cyd_480x320` build flags carry a "verify TFT_BL pin and SPI_FREQUENCY against your exact board revision" comment from initial bring-up; verify on actual ST7796 hardware and remove the warning
+- [ ] Touch calibration — `TFT_eSPI`/XPT2046 calibration matrix should be persisted in NVS (`Preferences`) before touch features land
+- [ ] Encapsulate `g_flights` / `g_states` globals behind a small `AppState` class to make ownership and threading expectations explicit
+- [ ] AeroAPI request budget (`MAX_AEROAPI_CALLS_PER_CYCLE = 5`) is compile-time; expose via `RuntimeConfig` and the WebUI for users on different paid tiers
+- [ ] WebUI enriched-flights cap (5) is hardcoded in `WebUIServer::onGetLive`; lift to a constant alongside `EVENT_CAPACITY`
+- [ ] `CYDDisplay::displayFlights` render-skip uses a string-concatenated `renderKey`; replace with a hashed key (e.g. FNV-1a over the same fields) to remove the `String` allocation per loop tick
+- [ ] OpenSky `fetchStateVectors` — when WiFi reconnects mid-cycle, retry once instead of returning empty and forcing the next interval to refetch
+- [ ] AeroAPI 401/403 are handled as generic non-200; treat 401 as a credential failure event surfaced in the WebUI Activity Feed
+- [ ] `FlightDataFetcher::fetchFlights` clears `outStates` / `outFlights` unconditionally; consider `swap` with a temporary so callers' last-good vectors are never observed empty mid-fetch
+- [ ] Reduce HTML/JS PROGMEM footprint by minifying `HTML_PAGE` at build time (current raw size ~10 KB)
 
 ---
 
