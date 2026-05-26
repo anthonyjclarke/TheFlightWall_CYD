@@ -6,8 +6,8 @@ namespace UserConfiguration
 {
     // Geographic centre for nearby-flight search.
     // Fallback defaults; runtime values can be changed via the WebUI.
-    static constexpr double CENTER_LAT = -33.823358; // Sydney, AU (example)
-    static constexpr double CENTER_LON = 151.108;
+    static constexpr double CENTER_LAT = -33.8688; // Sydney CBD, AU (example — override via WebUI)
+    static constexpr double CENTER_LON = 151.2093;
     static constexpr double RADIUS_KM  = 15.0;
 
     // Display colour palette (RGB565).

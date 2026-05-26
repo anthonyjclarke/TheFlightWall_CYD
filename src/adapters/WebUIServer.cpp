@@ -15,7 +15,7 @@ static const char HTML_PAGE[] PROGMEM = R"rawlit(<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>The Flight Wall &#8212; CYD v1.0.0</title>
+<title>The Flight Wall &#8212; CYD v1.0.1</title>
 <style>
 :root{--bg:#060a0e;--panel:#0c1218;--panel2:#111a21;--line:#1d2b34;--muted:#71808b;--text:#e8edf0;--amber:#f6a23a;--green:#48d095;--blue:#58a8c9;--red:#e87063;--glow:rgba(246,162,58,.17)}
 *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:Inter,"Avenir Next",system-ui,sans-serif}
@@ -70,7 +70,7 @@ footer h4{color:var(--text);font-size:11px;letter-spacing:.15em;text-transform:u
 </style>
 </head>
 <body><div class="shell">
-<header><div class="brand"><small>The Flight Wall &middot; CYD Edition</small><h1>The Flight Wall <span style="font-size:18px;opacity:.45;font-weight:400;letter-spacing:.02em">v1.0.0</span></h1></div><div class="status"><span class="dot"></span><span id="connection">Connecting to device</span><span id="clock"></span></div></header>
+<header><div class="brand"><small>The Flight Wall &middot; CYD Edition</small><h1>The Flight Wall <span style="font-size:18px;opacity:.45;font-weight:400;letter-spacing:.02em">v1.0.1</span></h1></div><div class="status"><span class="dot"></span><span id="connection">Connecting to device</span><span id="clock"></span></div></header>
 <div class="grid">
  <section class="panel"><div class="panel-head"><span class="panel-title">TFT Mirror</span><span class="pill">Browser Replica / Low Impact</span></div><div class="monitor-wrap"><div class="bezel"><div class="tft" id="tft"><div class="tft-top"><span class="tft-count" id="scount">0/0</span><span class="tft-ident" id="sident">SEARCHING...</span></div><div class="tft-mid"><div class="tft-airline" id="sairline"></div><div><div class="tft-route" id="sroute">--- - ---</div><div class="tft-aircraft" id="saircraft"></div></div></div><div class="tft-status"><div id="sline1"></div><div id="sline2"></div></div><div class="bar"><span id="sbar"></span></div></div></div><div class="monitor-foot"><span id="resolution">Display unavailable</span><span id="cardtime"></span></div></div></section>
  <section class="panel"><div class="panel-head"><span class="panel-title">Flight Data Feed</span><span class="pill">Volatile / API Reads</span></div><div class="stream" id="events"><div class="empty">Waiting for a fetch cycle...</div></div></section>

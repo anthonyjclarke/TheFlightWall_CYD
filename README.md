@@ -2,7 +2,7 @@
 
 PlatformIO firmware for the CYD (TFT) build target of [TheFlightWall OSS](https://github.com/AxisNimble/TheFlightWall_OSS) — the open-source flight wall project by [AxisNimble](https://github.com/AxisNimble). This repository implements the ESP32 "Cheap Yellow Display" hardware variant of that project using either 320x240 or 480x320 models.
 
-Current release: **v1.0.0** (26 May 2026)
+Current release: **v1.0.1** (26 May 2026)
 
 > ![Hero shot of CYD running FlightWall](images/hero.jpg)
 > *TheFlightWall CYD running live — enriched flight cards cycling on the ILI9341 320×240 TFT.*
