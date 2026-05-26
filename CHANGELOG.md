@@ -37,6 +37,13 @@
 
 ---
 
+## [1.0.1] 26-05-2026
+
+### Fixed
+- **Default coordinates replaced with Sydney CBD**: `UserConfiguration::CENTER_LAT/LON` changed from a precise six-decimal-place GPS fix to the Sydney CBD reference point (`-33.8688, 151.2093`). The previous value could identify a specific residential location. Runtime coordinates are always overridden via the WebUI and stored in NVS; this only affects the compile-time fallback used on first boot before any WebUI configuration.
+
+---
+
 ## [1.0.0] 26-05-2026
 
 ### Initial full release
