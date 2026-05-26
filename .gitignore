@@ -1,4 +1,8 @@
 misc
 .DS_Store
 .venv
+.pio
+.vscode
 firmware/.pio
+firmware/include/secrets.h
+include/secrets.h
