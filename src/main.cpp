@@ -23,6 +23,7 @@ static unsigned long g_lastFetchMs = 0;
 static unsigned long g_rebootAt    = 0; // non-zero = reboot pending at this millis() value
 static std::vector<StateVector> g_states;
 static std::vector<FlightInfo>  g_flights;
+static String g_emptyMessage; // non-empty = show this on TFT instead of "Searching..."
 
 static void initFilesystem()
 {
@@ -147,15 +148,35 @@ void loop()
     {
       g_states  = states;
       g_flights = flights;
+      g_emptyMessage = "";
+    }
+    else if (!states.empty())
+    {
+      // Aircraft were observed within radius but the displayability filter
+      // (FlightDataFetcher) removed all of them — typically parked aircraft or
+      // non-airliner transponder targets. Drop any stale last-good list so
+      // the TFT reflects current reality, not a cached flight from minutes ago.
+      g_flights.clear();
+      g_states = states;
+      g_emptyMessage = String("No active flights within ") +
+                       String((int)RuntimeConfig::radiusKm()) + "km";
     }
     else if (g_flights.empty())
     {
+      // Truly nothing in radius and no last-good to fall back on.
       g_states.clear();
+      g_emptyMessage = "";
     }
+    // else: fetch returned nothing but we still have last-good g_flights — keep showing it.
 
     g_webUI.recordFetch(states, flights, enriched);
     g_lastFetchMs = millis();
   }
 
-  g_display.displayFlights(g_flights);
+  if (!g_flights.empty())
+    g_display.displayFlights(g_flights);
+  else if (g_emptyMessage.length())
+    g_display.displayMessage(g_emptyMessage);
+  else
+    g_display.showLoading();
 }

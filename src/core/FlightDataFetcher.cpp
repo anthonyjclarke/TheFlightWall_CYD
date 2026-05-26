@@ -12,6 +12,18 @@ Output: Returns count of enriched flights and fills outStates/outFlights.
 #include "FlightWallFetcher.h"
 #include "debug.h"
 
+// A card is worth showing on the TFT / dashboard if at least one is true:
+//  - AeroAPI confirmed an active flight record (route + timing known)
+//  - The aircraft is airborne and has a real callsign (hex-only idents and
+//    on-ground unenriched targets are uninformative empty cards)
+static bool isDisplayableCard(const FlightInfo &f)
+{
+    if (f.enriched)          return true;
+    if (f.ident == f.icao24) return false; // no callsign — just transponder hex
+    if (f.on_ground)         return false; // parked/taxiing with no AeroAPI match
+    return true;
+}
+
 FlightDataFetcher::FlightDataFetcher(BaseStateVectorFetcher *stateFetcher,
                                      BaseFlightFetcher *flightFetcher)
     : _stateFetcher(stateFetcher), _flightFetcher(flightFetcher) {}
@@ -77,16 +89,47 @@ size_t FlightDataFetcher::fetchFlights(std::vector<StateVector> &outStates,
                                hasDigit && !hasEmbeddedSpace && alphaPrefix >= 3;
         if (!canEnrich)
         {
-            DBG_VERBOSE("Display '%s' without AeroAPI enrichment: invalid flight callsign",
-                        info.ident.c_str());
-            outFlights.push_back(info);
+            // 1–2 letter prefixes (e.g. PE771) are government/charter/military —
+            // no AeroAPI record exists and the card would show --- - --- with no route.
+            if (alphaPrefix >= 1 && alphaPrefix < 3)
+            {
+                DBG_VERBOSE("Skip '%s': non-standard ICAO prefix (%u chars), unenrichable",
+                            info.ident.c_str(), (unsigned)alphaPrefix);
+                continue;
+            }
+            // Pure-alpha callsigns (CHK, LIFR, etc.) have no flight number and are
+            // helicopter/charter/government traffic — AeroAPI has no record for them.
+            if (!hasDigit && alphaPrefix >= 3)
+            {
+                DBG_VERBOSE("Skip '%s': pure-alpha callsign, not a scheduled flight number",
+                            info.ident.c_str());
+                continue;
+            }
+            DBG_VERBOSE("ADS-B-only '%s': invalid flight callsign", info.ident.c_str());
+            if (isDisplayableCard(info))
+                outFlights.push_back(info);
+            else
+                DBG_VERBOSE("Skip '%s': no callsign or on-ground without enrichment",
+                            info.ident.c_str());
             continue;
+        }
+
+        // ATC appends a letter suffix for duplicate departures (QLK423D → QLK423).
+        // AeroAPI indexes by the base flight number, not the ATC suffix, so strip it.
+        String aeroIdent = callsign;
+        if (aeroIdent.length() > 4 &&
+            isalpha((unsigned char)aeroIdent[aeroIdent.length() - 1]) &&
+            isdigit((unsigned char)aeroIdent[aeroIdent.length() - 2]))
+        {
+            aeroIdent.remove(aeroIdent.length() - 1);
+            DBG_VERBOSE("AeroAPI: stripped suffix '%s' -> '%s'",
+                        callsign.c_str(), aeroIdent.c_str());
         }
 
         if (aeroCallCount < TimingConfiguration::MAX_AEROAPI_CALLS_PER_CYCLE)
         {
             aeroCallCount++;
-            if (_flightFetcher->fetchFlightInfo(callsign, info))
+            if (_flightFetcher->fetchFlightInfo(aeroIdent, info))
             {
                 info.enriched = true;
                 FlightWallFetcher fw;
@@ -117,14 +160,29 @@ size_t FlightDataFetcher::fetchFlights(std::vector<StateVector> &outStates,
                 }
                 enriched++;
             }
+            else
+            {
+                // AeroAPI was called and explicitly returned no active record.
+                // The flight is likely in transition (just rotated / on short final).
+                // Suppress rather than show an "Airborne" placeholder with no data.
+                DBG_VERBOSE("Skip '%s': AeroAPI found no active record", callsign.c_str());
+                continue;
+            }
         }
         else
         {
-            DBG_VERBOSE("Display '%s' without AeroAPI enrichment: cycle API limit reached",
-                        callsign.c_str());
+            // Per-cycle AeroAPI call limit reached — suppress rather than show a
+            // placeholder with no route. Visible in WebUI activity feed via raw states.
+            DBG_VERBOSE("Skip '%s': AeroAPI call limit reached this cycle", callsign.c_str());
+            continue;
         }
 
-        outFlights.push_back(info);
+        if (isDisplayableCard(info))
+            outFlights.push_back(info);
+        else
+            DBG_VERBOSE("Skip '%s': on_ground=%d enriched=%d ident==icao24=%d",
+                        info.ident.c_str(), info.on_ground, info.enriched,
+                        info.ident == info.icao24);
     }
     DBG_INFO("FlightData: states=%u cards=%u aero_calls=%u enriched=%u",
              (unsigned)outStates.size(),

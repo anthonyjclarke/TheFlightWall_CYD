@@ -14,7 +14,8 @@ namespace TimingConfiguration
     static constexpr uint32_t DISPLAY_CYCLE_SECONDS = 3;
 
     // Maximum AeroAPI calls per fetch cycle. AeroAPI free tier enforces ~1 req/s;
-    // calling every nearby callsign triggers HTTP 429. State vectors are already
-    // ordered by distance so this naturally limits to the closest aircraft.
-    static constexpr size_t MAX_AEROAPI_CALLS_PER_CYCLE = 5;
+    // each call takes ~10–15 s in practice so 10 calls adds ~100–150 s to a fetch.
+    // State vectors are ordered by distance so this caps to the closest aircraft.
+    // Raise this if you regularly see more flights than this value within radius.
+    static constexpr size_t MAX_AEROAPI_CALLS_PER_CYCLE = 10;
 }

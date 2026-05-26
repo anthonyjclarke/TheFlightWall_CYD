@@ -116,6 +116,7 @@ void CYDDisplay::clear()
   if (_tft)
     _tft->fillScreen(UserConfiguration::COLOR_BACKGROUND);
   resetRenderState();
+  _lastStatusMessage = "";
 }
 
 void CYDDisplay::displayFlights(const std::vector<FlightInfo> &flights)
@@ -151,12 +152,13 @@ void CYDDisplay::displayFlights(const std::vector<FlightInfo> &flights)
   _lastRenderedIndex = idx;
   _lastRenderedTotal = flights.size();
   _lastRenderedKey   = key;
+  _lastStatusMessage = ""; // leaving the message/loading state — allow next message to redraw
 }
 
 void CYDDisplay::displayMessage(const String &message)
 {
-  if (!_tft)
-    return;
+  if (!_tft) return;
+  if (_lastStatusMessage == message) return; // already showing this exact text — skip redraw
 
   _tft->startWrite();
   _tft->fillScreen(UserConfiguration::COLOR_BACKGROUND);
@@ -166,21 +168,24 @@ void CYDDisplay::displayMessage(const String &message)
   _tft->drawString(message, _w / 2, _h / 2);
   _tft->endWrite();
   resetRenderState();
+  _lastStatusMessage = message;
 }
 
 void CYDDisplay::showLoading()
 {
-  if (!_tft)
-    return;
+  if (!_tft) return;
+  static const char *kLoadingText = "Searching...";
+  if (_lastStatusMessage == kLoadingText) return;
 
   _tft->startWrite();
   _tft->fillScreen(UserConfiguration::COLOR_BACKGROUND);
   _tft->setFreeFont(F_SUB);
   _tft->setTextDatum(MC_DATUM);
   _tft->setTextColor(UserConfiguration::COLOR_SUB, UserConfiguration::COLOR_BACKGROUND);
-  _tft->drawString("Searching...", _w / 2, _h / 2);
+  _tft->drawString(kLoadingText, _w / 2, _h / 2);
   _tft->endWrite();
   resetRenderState();
+  _lastStatusMessage = kLoadingText;
 }
 
 String CYDDisplay::renderKey(const FlightInfo &f) const

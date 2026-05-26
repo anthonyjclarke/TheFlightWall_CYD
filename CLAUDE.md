@@ -1,6 +1,6 @@
 # FlightWall — CYD Edition
 
-ESP32 flight tracker displaying live nearby aircraft on a CYD TFT and embedded web dashboard. OpenSky ADS-B state vectors (OAuth2) → AeroAPI enrichment → FlightWall CDN name lookup → cycling flight card. Current version: 0.13.0.
+ESP32 flight tracker displaying live nearby aircraft on a CYD TFT and embedded web dashboard. OpenSky ADS-B state vectors (OAuth2) → AeroAPI enrichment → FlightWall CDN name lookup → cycling flight card. Current version: 1.0.0.
 
 ---
 
@@ -21,7 +21,9 @@ Standard CYD SPI pins apply to both (MOSI=13, SCLK=14, CS=15, DC=2, RST=-1, TOUC
 
 **Last-good-data policy.** `main.cpp` holds `g_flights` globally and only replaces it when a fetch returns a non-empty list. The display is called every `loop()` tick regardless of fetch state. Do not blank `g_flights` on an empty fetch result.
 
-**ADS-B fallback cards.** `FlightDataFetcher` always pushes a `FlightInfo` to `outFlights`, even when callsign validation fails, the AeroAPI call allowance has been used, or enrichment returns no current record. ADS-B state is copied before any enrichment attempt. If the callsign is absent, `info.ident` falls back to `icao24`; route and status lines remain empty, which `CYDDisplay` handles gracefully.
+**ADS-B fallback cards.** `FlightDataFetcher` copies live ADS-B state into a `FlightInfo` for every accepted state vector before deciding whether to call AeroAPI. The card is then gated by `isDisplayableCard()` (file-scope static): enriched cards are always pushed; otherwise the card is dropped if `ident == icao24` (no callsign — typically `7cf4b0`-style hex transponders) or `on_ground` is true (parked/taxiing aircraft AeroAPI cannot match to a live record). Airborne, validly-callsigned, unenriched cards (e.g. AeroAPI rate-limited) are still pushed. This keeps the original 0.9.0 "do not blank on AeroAPI failure" guarantee intact while preventing empty "GROUND 0km/h" cards from cycling on the TFT.
+
+**Empty-state TFT message.** `main.cpp` tracks `g_emptyMessage`. When `fetchFlights` returns aircraft (`states` non-empty) but the displayability filter removed all of them, `g_flights` is cleared and `g_emptyMessage` is set to `"No active flights within Nkm"`. The loop's tail dispatches flights → message → "Searching..." in that order. When the current fetch observes only filterable traffic, last-good `g_flights` is intentionally dropped so the TFT does not show a flight from minutes ago while reality is "nothing interesting nearby". `displayMessage` / `showLoading` are now idempotent on `_lastStatusMessage` to avoid flicker when called every loop tick.
 
 **CYDDisplay render guard.** `displayFlights()` computes a `renderKey` (composite of all visible fields including live metrics) and skips the SPI draw if nothing changed. Always call `resetRenderState()` when switching display content (clear, message, loading) so the next `displayFlights()` call forces a redraw.
 

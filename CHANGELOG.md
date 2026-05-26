@@ -37,6 +37,42 @@
 
 ---
 
+## [1.0.0] 26-05-2026
+
+### Initial full release
+
+First stable release of the TheFlightWall CYD firmware. Consolidates the v0.12.0–v0.14.0 development cycle into a complete, documented build targeting the ESP32-2432S028R (ILI9341, 320×240) and ESP32-3248S035R (ST7796, 480×320).
+
+### Summary of capabilities at v1.0.0
+
+- **Enriched-only display policy**: only AeroAPI-enriched flights appear on the TFT and WebUI flight panel. Four categories suppressed: 1–2 letter ICAO prefix, pure-alpha callsigns, callsigns with no active AeroAPI match, and callsigns beyond the per-cycle call cap. All observed aircraft remain visible in the WebUI Activity Feed via raw OpenSky state vectors.
+- **Full data pipeline**: OpenSky Network OAuth2 ADS-B → `FlightDataFetcher` callsign validation and ATC suffix stripping → AeroAPI `/flights/{ident}` enrichment → FlightWall CDN airline/aircraft names → LittleFS-cached JPEG logos → cycling TFT cards and embedded HTTP dashboard.
+- **Web dashboard**: browser-rendered TFT mirror, horizontally scrollable current flights panel (all `g_flights` cards), 50-entry volatile activity feed, runtime configuration with NVS persistence and auto-reboot.
+- **Live ADS-B metrics at no extra API cost**: distance, cardinal bearing, altitude/flight level, speed, heading, climb/descent rate and ground state from OpenSky, surfaced on both TFT and dashboard.
+- **Documentation**: full README with pipeline diagram, display layout, credential setup guides, API references and image captions. CLAUDE.md architecture notes current.
+
+---
+
+## [0.14.0] 26-05-2026
+
+### Added
+- **Displayability filter** in `FlightDataFetcher`: ADS-B-only cards are now suppressed when the aircraft is on the ground without an active AeroAPI match, or when the callsign is absent (ident equals icao24). Enriched cards are always kept; airborne unenriched cards (e.g. AeroAPI rate-limited) are also kept. Resolves the empty "JST532 14.0km GROUND 0km/h" card type and the `7cf4b0` hex-only transponder card type appearing on the TFT and dashboard mirror.
+- **Empty-state TFT message**: when aircraft are observed within radius but all are filtered out, the TFT shows `No active flights within Nkm` (where N is the runtime radius). The WebUI dashboard and TFT now agree on "nothing active".
+
+### Fixed
+- **`displayMessage` / `showLoading` flicker**: both methods now skip the SPI redraw when the requested text matches what is already on screen. Previously they redrew on every loop tick when the device was in an empty-state, causing visible flicker. `_lastStatusMessage` tracks the active text and is cleared when a flight card is drawn so a return to status text always redraws.
+- **Stale "last-good" cards when only uninteresting traffic is in radius**: `main.cpp` now clears `g_flights` when the current fetch sees aircraft but none are displayable, so the TFT does not keep cycling a flight from minutes ago while the actual current reality is "only a parked aircraft is here".
+
+### Changed
+- `main.cpp` introduces `g_emptyMessage` and a three-way display dispatch at end-of-loop: flights → message → loading. `g_states` is retained on the filtered-empty path for WebUI activity-feed visibility.
+- **WebUI activity feed lists every observed aircraft, not just displayable ones.** `WebUIServer::recordFetch` now iterates over raw OpenSky `states` rather than the post-filter `flights`, merging in enriched data by `icao24` when available. Each line is written in plain language: `JST532 — on ground, no active flight match  14km E · on ground`, `QFA1 — Sydney → Singapore (Qantas 737)  20km NW · FL360 · 920km/h climbing`, `7cf4b0 — unidentified ADS-B contact (Australia)  8km S · on ground`. Summary line now reports `Observed N nearby aircraft; M matched to a current flight; K shown on display.` Per-fetch detail capped at 12 lines (with `… and X more` suffix) to keep about four fetches of history visible inside the 50-entry ring buffer.
+- **WebUI Current Flights panel**: removed the 5-flight enriched-only cap. The panel now shows every card in `g_flights` — the same set displayed on the TFT, including ADS-B-only airborne cards. Cards scroll horizontally with ‹ › navigation buttons and CSS scroll-snap. Enriched cards are tagged `ENRICHED` (green); ADS-B-only cards are tagged `ADS-B` (blue) and show airborne/ground status in place of the route line. The pill counter reads "N cards · M enriched". `GET /api/live` key renamed from `enriched` to `flights`; `DynamicJsonDocument` enlarged to 32 KB to accommodate larger flight lists.
+- **WebUI title and footer**: page title updated to "The Flight Wall — CYD v0.14.0". Added footer with contact details (Anthony Clarke, email, GitHub/BlueSky/Threads/LinkedIn) and an acknowledgements grid crediting OpenSky Network, FlightAware AeroAPI, Jxck-S/airline-logos, images.weserv.nl, TFT_eSPI/Bodmer, TJpg_Decoder/Bodmer, WiFiManager/tzapu and ArduinoJson/Blanchon.
+- **`MAX_AEROAPI_CALLS_PER_CYCLE` raised from 5 → 10**: near a major airport (e.g. 15 km of SYD) 7–10 in-range flights are common. The previous cap left the 6th+ flights permanently ADS-B-only. Each AeroAPI call takes ~10–15 s so the worst-case fetch cycle is ~150 s; the fetch interval is a minimum gap between cycles, so a slow fetch is safe.
+- **ATC duplicate-departure suffix stripping**: callsigns like `QLK423D` where ATC appends a letter after the digits are now normalised to `QLK423` before the AeroAPI lookup. AeroAPI indexes by base flight number and returns no records for the suffixed form. The displayed ident on the TFT and dashboard remains the original broadcast callsign.
+- **Enriched-only card policy**: only AeroAPI-enriched flights are shown on the TFT and the WebUI flight cards panel. Four categories are now suppressed rather than shown as "Airborne" placeholders: (1) 1–2 letter prefix callsigns (PE771 — non-standard ICAO); (2) pure-alpha callsigns with no flight number (CHK — helicopter/charter/government); (3) valid callsigns where AeroAPI was called and returned no active record (transition state — just rotated or on short final); (4) valid callsigns beyond the per-cycle AeroAPI call cap. All aircraft still appear in the WebUI Activity Feed via the raw OpenSky state vector path regardless of suppression. These flights can never be enriched by AeroAPI (ICAO airline codes are always 3 letters), so they would always render as `--- - ---` empty cards. 3-letter prefix flights still receive an AeroAPI enrichment attempt; hex-only idents are unchanged.
+---
+
 ## [0.13.0] 25-05-2026
 
 ### Added

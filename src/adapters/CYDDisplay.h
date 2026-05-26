@@ -33,6 +33,7 @@ private:
     size_t        _lastRenderedIndex  = (size_t)-1;
     size_t        _lastRenderedTotal  = 0;
     String        _lastRenderedKey;
+    String        _lastStatusMessage; // tracks displayMessage / showLoading text to avoid flicker
 
     void drawFlightCard(const FlightInfo &f, size_t idx, size_t total);
     void drawProgressBar(const FlightInfo &f, time_t now);

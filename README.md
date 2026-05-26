@@ -1,18 +1,18 @@
 # TheFlightWall Firmware — CYD Edition
 
-PlatformIO firmware for the CYD (TFT) variant of TheFlightWall. The current root-level project targets ESP32 "Cheap Yellow Display" boards rather than the original LED matrix build.
+PlatformIO firmware for the CYD (TFT) build target of [TheFlightWall OSS](https://github.com/AxisNimble/TheFlightWall_OSS) — the open-source flight wall project by [AxisNimble](https://github.com/AxisNimble). This repository implements the ESP32 "Cheap Yellow Display" hardware variant of that project using either 320x240 or 480x320 models.
 
-Current release: **v0.13.0** (25 May 2026)
+Current release: **v1.0.0** (26 May 2026)
 
 > ![Hero shot of CYD running FlightWall](images/hero.jpg)
-> *Placeholder — front-on photo of the CYD displaying a flight card: callsign top-left, airline logo left column, IATA route in amber, progress bar at the bottom.*
+> *TheFlightWall CYD running live — enriched flight cards cycling on the ILI9341 320×240 TFT.*
 
 ---
 
 ## Current status
 
 - Default build target: `cyd_320x240`
-- Verified build: `platformio run` / `/Users/anthonyjclarke/.platformio/penv/bin/platformio run`
+- Verified build: `platformio run`
 - WiFi provisioning: WiFiManager captive portal named **FlightWall-Setup**
 - Flight position source: OpenSky Network OAuth2 REST API
 - Flight route/aircraft enrichment: FlightAware AeroAPI
@@ -36,8 +36,8 @@ Current release: **v0.13.0** (25 May 2026)
 - Keeps an in-memory 50-entry scrolling log of the latest fetch results.
 - Shows live ADS-B metrics without adding API cost: distance/cardinal bearing, altitude or flight level, speed, heading, climb/descent, ground state.
 
-> ![Data pipeline diagram](images/pipeline.png)
-> *Placeholder — block diagram: OpenSky `/states/all` → `FlightDataFetcher` → AeroAPI `/flights/{ident}` → FlightWall CDN name lookup → CYDDisplay + WebUIServer.*
+![Data pipeline diagram](images/pipeline.png)
+*Data flow: OpenSky ADS-B state vectors → callsign validation in `FlightDataFetcher` → AeroAPI route enrichment → FlightWall CDN name and logo lookup → cycling TFT cards and HTTP dashboard.*
 
 ---
 
@@ -81,14 +81,11 @@ Then set your location in `src/config/UserConfiguration.h` (or leave the default
 
 On first boot the device opens an AP named **FlightWall-Setup** — connect from any device and enter your WiFi credentials.
 
-> ![WiFiManager captive portal](images/wifi-portal.png)
-> *Placeholder — captive-portal page titled "FlightWall-Setup" with a list of nearby SSIDs and a password field.*
-
 ---
 
 ## Display output
 
-Each flight card is styled to match the commercial FlightWall product display. Layout (320×240, landscape):
+Each flight card follows the TheFlightWall OSS display layout. Layout (320×240, landscape):
 
 | Zone | Content |
 |:-----|:--------|
@@ -101,15 +98,23 @@ Each flight card is styled to match the commercial FlightWall product display. L
 | Progress bar | Green fill proportional to elapsed flight time; hidden until NTP sync |
 | ADS-B fallback row(s) | When enrichment is absent: `15km NE`, altitude / flight-level, speed, heading, climb/descent |
 
-When AeroAPI enrichment is unavailable for a flight (rate-limited, no current record, no API key, or invalid callsign), the card still displays using live ADS-B data only: ident, altitude, speed, heading, distance and bearing. Route and status lines are omitted for ADS-B-only cards.
+When AeroAPI enrichment is unavailable for a flight that is **airborne** with a valid airline callsign (rate-limited, no current record, or no API key), the card still displays using live ADS-B data only: ident, altitude, speed, heading, distance and bearing. Route and status lines are omitted for ADS-B-only cards.
 
-The display cycle is independent of network fetching. If a fetch is slow, rate-limited, or returns no results, the display keeps cycling the last good flight list rather than freezing or blanking.
+Cards are suppressed from the TFT and the dashboard mirror when they would be empty:
+- Aircraft on the ground without an active AeroAPI match (parked / taxiing — e.g. a Jetstar 320 sitting at a SYD gate between rotations)
+- Transponder targets with no callsign — the ident would be raw hex like `7cf4b0` (ground vehicles, helicopters, military targets with squelched ACID)
+
+When state vectors are received but every observation is filtered out, the TFT shows `No active flights within Nkm` (using the runtime radius) instead of an empty card or stale last-good. The display cycle is independent of network fetching — if a fetch is slow or returns no results at all, the display keeps cycling the last good flight list rather than freezing or blanking.
 
 > ![Enriched flight card close-up](images/card-enriched.jpg)
-> *Placeholder — close-up of an enriched card: airline logo, IATA route in amber, "Arriving at Melbourne in 1h 23m", progress bar partially filled.*
+> 
+> *Enriched card: airline, IATA route (origin → destination), aircraft type, departure/arrival status lines, and elapsed-time progress bar.*
 
 > ![ADS-B-only fallback card](images/card-adsb.jpg)
-> *Placeholder — fallback card with callsign at top, live metrics row at the bottom, no logo or status lines.*
+> *ADS-B-only card: live position data (distance, bearing, altitude, speed, heading, climb/descent) without route enrichment.*
+
+> ![CYD in use on a flight wall](images/cyd-in-use.jpg)
+> *CYD mounted on a flight wall — cards cycling automatically every three seconds.*
 
 ### Airline brand colour
 
@@ -141,10 +146,10 @@ Dashboard endpoints:
 Credentials are write-only in the WebUI: stored OpenSky secrets and AeroAPI keys are never returned by `GET /api/config`.
 
 > ![Web dashboard overview](images/webui-dashboard.png)
-> *Placeholder — full-page screenshot showing TFT Mirror at top-left, Activity Feed scrolling on the right, Enriched Flights panel below the mirror, Device Configuration form at the bottom.*
+> *Web dashboard at `http://<device-ip>/` — TFT mirror, current flights panel with horizontal scroll, live activity feed, and runtime status.*
 
 > ![WebUI configuration form](images/webui-config.png)
-> *Placeholder — close-up of the Device Configuration panel with latitude, longitude, radius, fetch interval, cycle duration, brightness, OpenSky / AeroAPI credential fields and a Save & Reboot button.*
+> *Configuration panel — location, fetch interval, display cycle, brightness and API credentials; saved to NVS with an automatic reboot.*
 
 ---
 
@@ -325,7 +330,7 @@ If `include/secrets.h` exists but credentials still appear blank, check that it 
 
 ## Acknowledgements
 
-This firmware is derived from and inspired by the commercial [TheFlightWall](https://theflightwall.com) product. The CYD edition is an independent open-source reimplementation; it is not affiliated with or endorsed by TheFlightWall.
+This firmware is a CYD build target of [TheFlightWall OSS](https://github.com/AxisNimble/TheFlightWall_OSS), the open-source flight wall project by [AxisNimble](https://github.com/AxisNimble).
 
 ### Libraries
 
