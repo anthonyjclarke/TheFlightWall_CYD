@@ -21,10 +21,17 @@ public:
 
     bool ensureAuthenticated(bool forceRefresh = false);
 
+    const String& lastError()      const { return m_lastError; }
+    int           creditsRemaining() const { return m_creditsRemaining; }
+
 private:
     String m_accessToken;
-    unsigned long m_tokenExpiryMs = 0;
+    String m_lastError;
+    unsigned long m_tokenExpiryMs       = 0;
+    unsigned long m_rateLimitedUntilMs  = 0; // non-zero = honour 429 Retry-After window
+    int           m_creditsRemaining    = -1; // -1 = not yet observed
 
     bool ensureAccessToken(bool forceRefresh = false);
     bool requestAccessToken(String &outToken, unsigned long &outExpiryMs);
+    void updateCreditsFromHeader(HTTPClient &http);
 };

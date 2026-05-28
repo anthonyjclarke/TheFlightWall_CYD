@@ -18,10 +18,22 @@ public:
     void displayFlights(const std::vector<FlightInfo> &) override;
     void displayMessage(const String &message)          override;
     void showLoading()                                   override;
+    void showFetchStatus(const char *phase);
 
     size_t currentFlightIndex() const { return _currentFlightIndex; }
     uint16_t width() const { return _w; }
     uint16_t height() const { return _h; }
+
+    // Pass-through to TFT_eSPI::readRectRGB — reads a rectangle of pixels from the
+    // live framebuffer as packed RGB888 (3 bytes per pixel, R/G/B order). On ILI9341
+    // the low 2 bits of each channel are zero (the chip stores 18-bit colour).
+    // Buffer must be at least w * h * 3 bytes. Kept here to avoid leaking the TFT_eSPI
+    // pointer to other adapters.
+    void readRectRGB(int16_t x, int16_t y, int16_t w, int16_t h, uint8_t *buf);
+
+    // Force one map-card render regardless of flight list state.
+    // Used by main.cpp to honour WebUI "Preview Map" requests.
+    void showStandaloneMap();
 
 private:
     TFT_eSPI *_tft = nullptr;
@@ -34,6 +46,7 @@ private:
     size_t        _lastRenderedTotal  = 0;
     String        _lastRenderedKey;
     String        _lastStatusMessage; // tracks displayMessage / showLoading text to avoid flicker
+    String        _lastFetchPhase;   // tracks fetch status bar to avoid redundant redraws
 
     void drawFlightCard(const FlightInfo &f, size_t idx, size_t total);
     void drawProgressBar(const FlightInfo &f, time_t now);
@@ -52,6 +65,10 @@ private:
     // Status line builders
     String buildDepartedLine(const FlightInfo &f, time_t now) const;
     String buildArrivingLine(const FlightInfo &f, time_t now) const;
+
+    // Radar map card
+    void   drawMapCard(const std::vector<FlightInfo> &flights);
+    String mapRenderKey(const std::vector<FlightInfo> &flights) const;
 
     String fitText(const String &text, int maxWidth);
 };

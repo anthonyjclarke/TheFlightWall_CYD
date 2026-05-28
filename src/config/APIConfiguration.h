@@ -46,6 +46,16 @@ namespace APIConfiguration
     static constexpr uint16_t AIRLINE_LOGO_W = 80;
     static constexpr uint16_t AIRLINE_LOGO_H = 80;
 
+    // Google Maps Static API — used for the map card background image.
+    // Obtain a key at https://console.cloud.google.com/ → Maps Static API.
+    // Add SECRET_MAPS_API_KEY to include/secrets.h (gitignored).
+    static constexpr const char *MAPS_STATIC_URL = "https://maps.googleapis.com/maps/api/staticmap";
+#ifdef SECRET_MAPS_API_KEY
+    static const char *MAPS_API_KEY = SECRET_MAPS_API_KEY;
+#else
+    static const char *MAPS_API_KEY = "";
+#endif
+
     // TLS — set false in production once CA cert is pinned
     static constexpr bool AEROAPI_INSECURE_TLS    = true;
     static constexpr bool FLIGHTWALL_INSECURE_TLS = true;

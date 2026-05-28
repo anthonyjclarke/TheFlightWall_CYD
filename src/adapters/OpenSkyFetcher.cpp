@@ -11,6 +11,20 @@ Outputs: Populates outStateVectors with filtered results (distance_km, bearing_d
 #include "OpenSkyFetcher.h"
 #include "RuntimeConfig.h"
 #include "debug.h"
+#include <WiFiClientSecure.h>
+#include <WiFi.h>
+
+// Format a duration in seconds as "Xh Ym" (≥1 h) or "Xm Ys" (<1 h).
+static String fmtDuration(unsigned long secs)
+{
+    if (secs >= 3600)
+    {
+        unsigned long h = secs / 3600, m = (secs % 3600) / 60;
+        return String(h) + "h " + String(m) + "m";
+    }
+    unsigned long m = secs / 60, s = secs % 60;
+    return String(m) + "m " + String(s) + "s";
+}
 
 static String urlEncodeForm(const String &value)
 {
@@ -67,7 +81,22 @@ bool OpenSkyFetcher::ensureAccessToken(bool forceRefresh)
 
     m_accessToken   = newToken;
     m_tokenExpiryMs = newExpiryMs;
-    DBG_INFO("OpenSky: token cached, expires at ms: %ld", (long)m_tokenExpiryMs);
+    {
+        const time_t nowEpoch = time(nullptr);
+        if (nowEpoch > 1000000000L)
+        {
+            const time_t expiryEpoch = nowEpoch + (long)(m_tokenExpiryMs - millis()) / 1000L;
+            struct tm tinfo;
+            localtime_r(&expiryEpoch, &tinfo);
+            DBG_INFO("OpenSky: token cached, valid until %02d:%02d:%02d",
+                     tinfo.tm_hour, tinfo.tm_min, tinfo.tm_sec);
+        }
+        else
+        {
+            const unsigned long secsLeft = (m_tokenExpiryMs - millis()) / 1000UL;
+            DBG_INFO("OpenSky: token cached, valid for %lu:%02lu", secsLeft / 60, secsLeft % 60);
+        }
+    }
     return true;
 }
 
@@ -87,9 +116,11 @@ bool OpenSkyFetcher::requestAccessToken(String &outToken, unsigned long &outExpi
         return false;
     }
 
+    WiFiClientSecure tokenClient;
+    tokenClient.setInsecure();
     HTTPClient http;
     DBG_VERBOSE("OpenSky: token URL: %s", APIConfiguration::OPENSKY_TOKEN_URL);
-    http.begin(APIConfiguration::OPENSKY_TOKEN_URL);
+    http.begin(tokenClient, APIConfiguration::OPENSKY_TOKEN_URL);
     http.addHeader("Content-Type", "application/x-www-form-urlencoded");
     http.addHeader("Accept", "application/json");
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
@@ -109,8 +140,9 @@ bool OpenSkyFetcher::requestAccessToken(String &outToken, unsigned long &outExpi
     String payload = http.getString();
     if (code != 200)
     {
-        DBG_WARN("OpenSky: token POST failed, code: %d  payload: %s",
-                 code, payload.length() ? payload.c_str() : "<empty>");
+        DBG_WARN("OpenSky: token POST failed, code: %d  wifi: %d  heap: %u  payload: %s",
+                 code, (int)WiFi.status(), ESP.getFreeHeap(),
+                 payload.length() ? payload.c_str() : "<empty>");
         http.end();
         return false;
     }
@@ -140,12 +172,24 @@ bool OpenSkyFetcher::requestAccessToken(String &outToken, unsigned long &outExpi
 
     outToken    = tokenStr;
     outExpiryMs = millis() + (unsigned long)expiresIn * 1000UL;
-    DBG_INFO("OpenSky: token obtained, len: %d  expires_in: %ds", (int)outToken.length(), expiresIn);
+    DBG_INFO("OpenSky: token obtained  len: %d  valid for %d:%02d",
+             (int)outToken.length(), expiresIn / 60, expiresIn % 60);
     return true;
 }
 
 // Parse a single raw states array element into a StateVector, filtering by radius.
 // Returns false if the element should be skipped.
+void OpenSkyFetcher::updateCreditsFromHeader(HTTPClient &http)
+{
+    const String hdr = http.header("X-Rate-Limit-Remaining");
+    if (!hdr.length()) return;
+    m_creditsRemaining = hdr.toInt();
+    if (m_creditsRemaining < 300)
+        DBG_WARN("OpenSky: credits LOW — %d remaining today", m_creditsRemaining);
+    else
+        DBG_INFO("OpenSky: credits remaining today: %d", m_creditsRemaining);
+}
+
 static bool parseStateVector(JsonVariant v, double centerLat, double centerLon,
                              double radiusKm, StateVector &out)
 {
@@ -229,8 +273,19 @@ bool OpenSkyFetcher::fetchStateVectors(double centerLat,
                                        double radiusKm,
                                        std::vector<StateVector> &outStateVectors)
 {
+    const unsigned long nowMs = millis();
+    if (m_rateLimitedUntilMs > 0 && nowMs < m_rateLimitedUntilMs)
+    {
+        const unsigned long remainSec = (m_rateLimitedUntilMs - nowMs + 500) / 1000;
+        m_lastError = "OpenSky: rate limited " + fmtDuration(remainSec);
+        DBG_WARN("OpenSky: rate-limited — %s remaining", fmtDuration(remainSec).c_str());
+        return false;
+    }
+    m_rateLimitedUntilMs = 0;
+
     if (!ensureAccessToken(false))
     {
+        m_lastError = "OpenSky: auth failed";
         DBG_WARN("OpenSky: ensureAccessToken failed — aborting fetch");
         return false;
     }
@@ -246,10 +301,14 @@ bool OpenSkyFetcher::fetchStateVectors(double centerLat,
     DBG_INFO("OpenSky: query center=%.5f,%.5f radius=%.1fkm bbox=%.5f,%.5f to %.5f,%.5f",
              centerLat, centerLon, radiusKm, latMin, lonMin, latMax, lonMax);
 
+    WiFiClientSecure statesClient;
+    statesClient.setInsecure();
     HTTPClient http;
-    http.begin(url);
+    http.begin(statesClient, url);
     http.setTimeout(15000);
     http.addHeader("Authorization", String("Bearer ") + m_accessToken);
+    const char *collectHdrs[] = { "X-Rate-Limit-Retry-After-Seconds", "X-Rate-Limit-Remaining" };
+    http.collectHeaders(collectHdrs, 2);
 
     int code = http.GET();
 
@@ -262,10 +321,14 @@ bool OpenSkyFetcher::fetchStateVectors(double centerLat,
             DBG_WARN("OpenSky: token refresh failed after 401");
             return false;
         }
+        WiFiClientSecure retryClient;
+        retryClient.setInsecure();
         HTTPClient retry;
-        retry.begin(url);
+        retry.begin(retryClient, url);
         retry.setTimeout(15000);
         retry.addHeader("Authorization", String("Bearer ") + m_accessToken);
+        const char *retryHdrs[] = { "X-Rate-Limit-Retry-After-Seconds", "X-Rate-Limit-Remaining" };
+        retry.collectHeaders(retryHdrs, 2);
         code = retry.GET();
         if (code != 200)
         {
@@ -273,18 +336,44 @@ bool OpenSkyFetcher::fetchStateVectors(double centerLat,
             retry.end();
             return false;
         }
+        updateCreditsFromHeader(retry);
         String payload = retry.getString();
         retry.end();
         return parseStatesPayload(payload, centerLat, centerLon, radiusKm, outStateVectors);
     }
 
-    if (code != 200)
+    if (code == 429)
     {
-        DBG_WARN("OpenSky: HTTP GET failed, code: %d", code);
+        String retryAfterHdr = http.header("X-Rate-Limit-Retry-After-Seconds");
+        unsigned long backoffSec = retryAfterHdr.length() ? retryAfterHdr.toInt() : 3600;
+        if (backoffSec == 0) backoffSec = 3600;
+        m_rateLimitedUntilMs = millis() + backoffSec * 1000UL;
+        m_lastError = "OpenSky: rate limited " + fmtDuration(backoffSec);
+        // Capture remaining credits from 429 response — OpenSky typically includes
+        // this header (usually 0) so the WebUI badge updates immediately, not after
+        // the backoff lifts and a 200 comes back.
+        updateCreditsFromHeader(http);
+        {
+            const time_t clearEpoch = time(nullptr) + (time_t)backoffSec;
+            struct tm tinfo;
+            localtime_r(&clearEpoch, &tinfo);
+            DBG_WARN("OpenSky: 429 rate-limited — backing off %s (clears at %02d:%02d)",
+                     fmtDuration(backoffSec).c_str(), tinfo.tm_hour, tinfo.tm_min);
+        }
         http.end();
         return false;
     }
+    if (code != 200)
+    {
+        m_lastError = String("OpenSky: error ") + String(code);
+        DBG_WARN("OpenSky: HTTP GET failed, code: %d  wifi: %d  heap: %u",
+                 code, (int)WiFi.status(), ESP.getFreeHeap());
+        http.end();
+        return false;
+    }
+    m_lastError = "";
 
+    updateCreditsFromHeader(http);
     String payload = http.getString();
     http.end();
     return parseStatesPayload(payload, centerLat, centerLon, radiusKm, outStateVectors);

@@ -34,6 +34,7 @@ size_t FlightDataFetcher::fetchFlights(std::vector<StateVector> &outStates,
     outStates.clear();
     outFlights.clear();
 
+    progress("OpenSky");
     bool ok = _stateFetcher->fetchStateVectors(
         RuntimeConfig::centerLat(),
         RuntimeConfig::centerLon(),
@@ -128,6 +129,12 @@ size_t FlightDataFetcher::fetchFlights(std::vector<StateVector> &outStates,
 
         if (aeroCallCount < TimingConfiguration::MAX_AEROAPI_CALLS_PER_CYCLE)
         {
+            char phaseBuf[24];
+            snprintf(phaseBuf, sizeof(phaseBuf), "AeroAPI %u/%u",
+                     (unsigned)(aeroCallCount + 1),
+                     (unsigned)TimingConfiguration::MAX_AEROAPI_CALLS_PER_CYCLE);
+            progress(phaseBuf);
+
             aeroCallCount++;
             if (_flightFetcher->fetchFlightInfo(aeroIdent, info))
             {
@@ -135,6 +142,7 @@ size_t FlightDataFetcher::fetchFlights(std::vector<StateVector> &outStates,
                 FlightWallFetcher fw;
                 if (info.operator_icao.length())
                 {
+                    progress("Airline name");
                     String airlineFull;
                     uint16_t airlineColor;
                     if (fw.getAirlineData(info.operator_icao, airlineFull, airlineColor))
@@ -143,12 +151,14 @@ size_t FlightDataFetcher::fetchFlights(std::vector<StateVector> &outStates,
                         info.airline_color = airlineColor;
                     }
 
+                    progress("Airline logo");
                     String logoPath;
                     if (fw.getAirlineLogo(info.operator_icao, info.operator_iata, logoPath))
                         info.logo_path = logoPath;
                 }
                 if (info.aircraft_code.length())
                 {
+                    progress("Aircraft type");
                     String aircraftShort, aircraftFull;
                     if (fw.getAircraftName(info.aircraft_code, aircraftShort, aircraftFull))
                     {

@@ -16,7 +16,9 @@ static double   s_centerLon;
 static double   s_radiusKm;
 static uint32_t s_fetchSec;
 static uint32_t s_cycleSec;
+static uint32_t s_mapSec;
 static uint8_t  s_brightness;
+static uint16_t s_labelColor;   // RGB565 — flight-label colour on both maps (default yellow)
 static String   s_openskyId;
 static String   s_openskySecret;
 static String   s_aeroApiKey;
@@ -31,7 +33,9 @@ void RuntimeConfig::load()
   s_radiusKm   = p.getDouble("radius_km",  UserConfiguration::RADIUS_KM);
   s_fetchSec   = p.getUInt  ("fetch_sec",  TimingConfiguration::FETCH_INTERVAL_SECONDS);
   s_cycleSec   = p.getUInt  ("cycle_sec",  TimingConfiguration::DISPLAY_CYCLE_SECONDS);
+  s_mapSec     = p.getUInt  ("map_sec",    TimingConfiguration::DISPLAY_MAP_SECONDS);
   s_brightness = p.getUChar ("brightness", HardwareConfiguration::BL_BRIGHTNESS);
+  s_labelColor = p.getUShort("lbl_col",    UserConfiguration::COLOR_MAP_LABEL);
 
   // Credential fallback: NVS value → compile-time secret → empty
   s_openskyId     = p.getString("osky_id",  APIConfiguration::OPENSKY_CLIENT_ID);
@@ -40,8 +44,8 @@ void RuntimeConfig::load()
 
   p.end();
 
-  DBG_INFO("RuntimeConfig loaded: lat=%.4f lon=%.4f r=%.0fkm fetch=%us cycle=%us bright=%u",
-           s_centerLat, s_centerLon, s_radiusKm, s_fetchSec, s_cycleSec, s_brightness);
+  DBG_INFO("RuntimeConfig loaded: lat=%.4f lon=%.4f r=%.0fkm fetch=%us cycle=%us map=%us bright=%u",
+           s_centerLat, s_centerLon, s_radiusKm, s_fetchSec, s_cycleSec, s_mapSec, s_brightness);
   DBG_INFO("RuntimeConfig APIs: OpenSky=%s AeroAPI=%s",
            s_openskyId.length() && s_openskySecret.length() ? "configured" : "missing",
            s_aeroApiKey.length() ? "configured" : "missing");
@@ -57,7 +61,9 @@ void RuntimeConfig::save()
   p.putDouble("radius_km", s_radiusKm);
   p.putUInt  ("fetch_sec", s_fetchSec);
   p.putUInt  ("cycle_sec", s_cycleSec);
+  p.putUInt  ("map_sec",   s_mapSec);
   p.putUChar ("brightness",s_brightness);
+  p.putUShort("lbl_col",   s_labelColor);
   p.putString("osky_id",   s_openskyId);
   p.putString("osky_sec",  s_openskySecret);
   p.putString("aero_key",  s_aeroApiKey);
@@ -72,7 +78,9 @@ double   RuntimeConfig::centerLon()           { return s_centerLon; }
 double   RuntimeConfig::radiusKm()            { return s_radiusKm; }
 uint32_t RuntimeConfig::fetchIntervalSec()    { return s_fetchSec; }
 uint32_t RuntimeConfig::displayCycleSec()     { return s_cycleSec; }
+uint32_t RuntimeConfig::mapDisplaySec()       { return s_mapSec; }
 uint8_t  RuntimeConfig::brightness()          { return s_brightness; }
+uint16_t RuntimeConfig::labelColor()          { return s_labelColor; }
 String   RuntimeConfig::openskyClientId()     { return s_openskyId; }
 String   RuntimeConfig::openskyClientSecret() { return s_openskySecret; }
 String   RuntimeConfig::aeroApiKey()          { return s_aeroApiKey; }
@@ -83,7 +91,9 @@ void RuntimeConfig::setCenterLon(double v)          { s_centerLon = v; }
 void RuntimeConfig::setRadiusKm(double v)           { s_radiusKm = v; }
 void RuntimeConfig::setFetchIntervalSec(uint32_t v) { s_fetchSec = v; }
 void RuntimeConfig::setDisplayCycleSec(uint32_t v)  { s_cycleSec = v; }
+void RuntimeConfig::setMapDisplaySec(uint32_t v)    { s_mapSec   = v; }
 void RuntimeConfig::setBrightness(uint8_t v)        { s_brightness = v; }
+void RuntimeConfig::setLabelColor(uint16_t v)       { s_labelColor = v; }
 void RuntimeConfig::setOpenskyClientId(const String &v)     { s_openskyId = v; }
 void RuntimeConfig::setOpenskyClientSecret(const String &v) { s_openskySecret = v; }
 void RuntimeConfig::setAeroApiKey(const String &v)          { s_aeroApiKey = v; }
