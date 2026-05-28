@@ -11,6 +11,7 @@
 #include "AeroAPIFetcher.h"
 #include "FlightDataFetcher.h"
 #include "CYDDisplay.h"
+#include "MapProvider.h"
 #include "WebUIServer.h"
 
 static OpenSkyFetcher    g_openSky;
@@ -19,8 +20,12 @@ static FlightDataFetcher *g_fetcher = nullptr;
 static CYDDisplay        g_display;
 static WebUIServer       g_webUI;
 
-static unsigned long g_lastFetchMs = 0;
-static unsigned long g_rebootAt    = 0; // non-zero = reboot pending at this millis() value
+struct FetchCtx { WebUIServer *web; CYDDisplay *disp; };
+static FetchCtx g_fetchCtx;
+
+static unsigned long g_lastFetchMs    = 0;
+static unsigned long g_rebootAt       = 0; // non-zero = reboot pending at this millis() value
+static unsigned long g_firstFetchAt   = 0; // millis() value after which the first fetch is allowed
 static std::vector<StateVector> g_states;
 static std::vector<FlightInfo>  g_flights;
 static String g_emptyMessage; // non-empty = show this on TFT instead of "Searching..."
@@ -91,6 +96,23 @@ void setup()
   initTime();
   g_webUI.begin(&g_flights, &g_display);
   g_fetcher = new FlightDataFetcher(&g_openSky, &g_aeroApi);
+  g_fetchCtx = {&g_webUI, &g_display};
+  g_fetcher->setProgressCallback(
+    [](void *ctx, const char *phase) {
+      auto *c = static_cast<FetchCtx *>(ctx);
+      c->web->setBusy(phase && phase[0] != '\0', phase);
+      c->web->pump();
+      c->disp->showFetchStatus(phase);
+    },
+    &g_fetchCtx);
+  g_firstFetchAt = millis() + TimingConfiguration::STARTUP_WEBUI_GRACE_MS;
+  // Pre-arm the interval timer so the first fetch fires at grace-expiry, not after
+  // a full interval. Unsigned wrap-around arithmetic is intentional: at the moment
+  // now == g_firstFetchAt, (now - g_lastFetchMs) will equal exactly intervalMs.
+  g_lastFetchMs  = g_firstFetchAt - RuntimeConfig::fetchIntervalSec() * 1000UL;
+  DBG_INFO("WebUI ready — first fetch in %u s (http://%s/)",
+           TimingConfiguration::STARTUP_WEBUI_GRACE_MS / 1000,
+           WiFi.localIP().toString().c_str());
   g_display.showLoading();
   DBG_INFO("Free heap: %u bytes", ESP.getFreeHeap());
 }
@@ -114,7 +136,7 @@ void loop()
   // ── Flight fetch / display ─────────────────────────────────────────────────
   const unsigned long now        = millis();
   const unsigned long intervalMs = RuntimeConfig::fetchIntervalSec() * 1000UL;
-  const bool shouldFetch = g_flights.empty() || (now - g_lastFetchMs >= intervalMs);
+  const bool shouldFetch = (now >= g_firstFetchAt) && (now - g_lastFetchMs >= intervalMs);
 
   if (shouldFetch && WiFi.status() != WL_CONNECTED)
   {
@@ -128,7 +150,11 @@ void loop()
   {
     std::vector<StateVector> states;
     std::vector<FlightInfo>  flights;
+    g_display.showFetchStatus("Fetching...");
+    g_webUI.setBusy(true, "Starting fetch");
     const size_t enriched = g_fetcher->fetchFlights(states, flights);
+    g_webUI.setBusy(false, "");
+    g_display.showFetchStatus("");
 
     DBG_INFO("State vectors: %u  enriched: %u", (unsigned)states.size(), (unsigned)enriched);
 
@@ -144,6 +170,10 @@ void loop()
                    ? f.aircraft_display_name_short.c_str()
                    : f.aircraft_code.c_str());
 
+    const String apiErr = g_openSky.lastError();
+    g_webUI.setApiError(apiErr);
+    g_webUI.setCreditsRemaining(g_openSky.creditsRemaining());
+
     if (!flights.empty())
     {
       g_states  = states;
@@ -158,21 +188,29 @@ void loop()
       // the TFT reflects current reality, not a cached flight from minutes ago.
       g_flights.clear();
       g_states = states;
-      g_emptyMessage = String("No active flights within ") +
-                       String((int)RuntimeConfig::radiusKm()) + "km";
+      g_emptyMessage = apiErr.length() ? apiErr :
+                       String("No active flights within ") + String((int)RuntimeConfig::radiusKm()) + "km";
     }
     else if (g_flights.empty())
     {
-      // Truly nothing in radius and no last-good to fall back on.
+      // Fetch returned no state vectors and no last-good data available.
       g_states.clear();
-      g_emptyMessage = "";
+      g_emptyMessage = apiErr.length() ? apiErr :
+                       String("No active flights within ") + String((int)RuntimeConfig::radiusKm()) + "km";
     }
     // else: fetch returned nothing but we still have last-good g_flights — keep showing it.
 
     g_webUI.recordFetch(states, flights, enriched);
+    // Pre-fetch / validate the map cache — returns immediately on a 24-hour cache hit.
+    g_display.showFetchStatus("Map cache");
+    g_webUI.setBusy(true, "Map cache");
+    MapProvider::ensureMapCached(g_display.width(), g_display.height());
+    g_webUI.setBusy(false, "");
+    g_display.showFetchStatus("");
     g_lastFetchMs = millis();
   }
 
+  // ── Normal display routing ─────────────────────────────────────────────────
   if (!g_flights.empty())
     g_display.displayFlights(g_flights);
   else if (g_emptyMessage.length())

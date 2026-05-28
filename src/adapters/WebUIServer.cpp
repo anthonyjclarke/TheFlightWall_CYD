@@ -15,7 +15,7 @@ static const char HTML_PAGE[] PROGMEM = R"rawlit(<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>The Flight Wall &#8212; CYD v1.0.1</title>
+<title>The Flight Wall &#8212; CYD v1.2.0</title>
 <style>
 :root{--bg:#060a0e;--panel:#0c1218;--panel2:#111a21;--line:#1d2b34;--muted:#71808b;--text:#e8edf0;--amber:#f6a23a;--green:#48d095;--blue:#58a8c9;--red:#e87063;--glow:rgba(246,162,58,.17)}
 *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:Inter,"Avenir Next",system-ui,sans-serif}
@@ -26,6 +26,11 @@ header{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;
 h1{font-size:clamp(26px,3vw,38px);font-weight:540;line-height:1;margin:0;letter-spacing:-.04em}
 .status{display:flex;align-items:center;gap:12px;border:1px solid var(--line);background:rgba(12,18,24,.75);border-radius:30px;padding:9px 15px;font-size:13px;color:var(--muted)}
 .dot{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 12px var(--green)}
+.api-alert{display:none;padding:7px 24px;font-size:13px;font-weight:500;background:rgba(232,112,99,.12);border-bottom:1px solid var(--red);color:var(--red)}
+.busy-bar{display:none;padding:7px 24px;font-size:13px;font-weight:500;background:rgba(246,162,58,.10);border-bottom:1px solid var(--amber);color:var(--amber);align-items:center;gap:10px}
+.busy-bar.show{display:flex}
+.busy-dot{flex-shrink:0;width:8px;height:8px;border-radius:50%;background:var(--amber);animation:pulse 1.2s infinite ease-in-out}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.7)}}
 .grid{display:grid;grid-template-columns:minmax(350px,520px) minmax(350px,1fr);gap:18px;margin-bottom:18px}
 .panel{background:linear-gradient(145deg,rgba(15,23,29,.94),rgba(8,13,18,.96));border:1px solid var(--line);border-radius:18px;box-shadow:0 16px 44px rgba(0,0,0,.22);overflow:hidden}
 .panel-head{display:flex;justify-content:space-between;align-items:center;padding:18px 20px 12px}
@@ -59,6 +64,9 @@ h1{font-size:clamp(26px,3vw,38px);font-weight:540;line-height:1;margin:0;letter-
 .settings{padding:0 20px 22px}.settings-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.field label{display:block;color:var(--muted);font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin:0 0 6px}
 input{width:100%;background:#0a1015;border:1px solid var(--line);border-radius:8px;padding:9px 10px;color:var(--text);font-size:13px}input:focus{outline:none;border-color:var(--amber)}
 .credentials{margin-top:16px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.cred-note{font-size:11px;color:var(--muted);margin-top:6px}.configured{color:var(--green)}
+.info{display:inline-block;position:relative;color:var(--amber);cursor:help;font-size:13px;margin-left:4px;text-transform:none;letter-spacing:0}
+.info::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 7px);left:50%;transform:translateX(-50%);width:260px;background:#1d2b34;color:#e8edf0;font-size:11px;font-weight:400;line-height:1.5;text-transform:none;letter-spacing:0;padding:8px 10px;border-radius:7px;border:1px solid var(--line);white-space:normal;pointer-events:none;opacity:0;transition:opacity .15s;z-index:200}
+.info:hover::after{opacity:1}
 .actions{display:flex;justify-content:space-between;align-items:center;margin-top:18px;gap:10px}.message{font-size:13px;color:var(--muted)}
 button{background:var(--amber);border:0;border-radius:9px;padding:11px 18px;font-weight:650;cursor:pointer;color:#181005}button:disabled{opacity:.45;cursor:default}
 @media(max-width:1120px){.settings-grid,.credentials{grid-template-columns:repeat(2,1fr)}}
@@ -70,9 +78,9 @@ footer h4{color:var(--text);font-size:11px;letter-spacing:.15em;text-transform:u
 </style>
 </head>
 <body><div class="shell">
-<header><div class="brand"><small>The Flight Wall &middot; CYD Edition</small><h1>The Flight Wall <span style="font-size:18px;opacity:.45;font-weight:400;letter-spacing:.02em">v1.0.1</span></h1></div><div class="status"><span class="dot"></span><span id="connection">Connecting to device</span><span id="clock"></span></div></header>
+<header><div class="brand"><small>The Flight Wall &middot; CYD Edition</small><h1>The Flight Wall <span style="font-size:18px;opacity:.45;font-weight:400;letter-spacing:.02em">v1.2.0</span></h1></div><div class="status"><span class="dot"></span><span id="connection">Connecting to device</span><span id="clock"></span><span id="nextupd" style="display:none;padding-left:10px;border-left:1px solid var(--line);margin-left:4px"></span><span id="credits" style="display:none;padding-left:10px;border-left:1px solid var(--line);margin-left:4px"></span></div></header><div class="api-alert" id="api-alert"></div><div class="busy-bar" id="busy-bar"><span class="busy-dot"></span><span id="busy-text">Device busy</span></div>
 <div class="grid">
- <section class="panel"><div class="panel-head"><span class="panel-title">TFT Mirror</span><span class="pill">Browser Replica / Low Impact</span></div><div class="monitor-wrap"><div class="bezel"><div class="tft" id="tft"><div class="tft-top"><span class="tft-count" id="scount">0/0</span><span class="tft-ident" id="sident">SEARCHING...</span></div><div class="tft-mid"><div class="tft-airline" id="sairline"></div><div><div class="tft-route" id="sroute">--- - ---</div><div class="tft-aircraft" id="saircraft"></div></div></div><div class="tft-status"><div id="sline1"></div><div id="sline2"></div></div><div class="bar"><span id="sbar"></span></div></div></div><div class="monitor-foot"><span id="resolution">Display unavailable</span><span id="cardtime"></span></div></div></section>
+ <section class="panel"><div class="panel-head"><span class="panel-title">TFT Mirror <span id="resolution" style="font-weight:400;opacity:.55;font-size:14px;letter-spacing:.01em;text-transform:none"></span></span><div style="display:flex;gap:8px;align-items:center"><span class="pill" id="map-pill" style="display:none;color:var(--amber);border-color:var(--amber)">&#9673; MAP CARD</span><span class="pill">Browser Replica / Low Impact</span></div></div><div class="monitor-wrap"><div class="bezel"><div class="tft" id="tft"><div class="tft-top"><span class="tft-count" id="scount">0/0</span><span class="tft-ident" id="sident">SEARCHING...</span></div><div class="tft-mid"><div class="tft-airline" id="sairline"></div><div><div class="tft-route" id="sroute">--- - ---</div><div class="tft-aircraft" id="saircraft"></div></div></div><div class="tft-status"><div id="sline1"></div><div id="sline2"></div></div><div class="bar"><span id="sbar"></span></div></div><div id="tftmap" style="display:none;width:100%;aspect-ratio:4/3;background:#000;border-radius:4px;overflow:hidden;position:relative"><img id="tftmaptile" style="width:100%;height:100%;display:block;object-fit:cover" alt="Map mirror"><svg id="tftmapol" preserveAspectRatio="none" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none"></svg></div></div><div class="monitor-foot"><a href="/api/screenshot" download style="color:var(--ink-dim);font-size:12px;text-decoration:none;border:1px solid var(--line);padding:4px 10px;border-radius:4px">&#8681; Screenshot (BMP)</a></div></div></section>
  <section class="panel"><div class="panel-head"><span class="panel-title">Flight Data Feed</span><span class="pill">Volatile / API Reads</span></div><div class="stream" id="events"><div class="empty">Waiting for a fetch cycle...</div></div></section>
 </div>
 <section class="panel section"><div class="panel-head"><span class="panel-title">Current Flights</span><div style="display:flex;align-items:center;gap:8px"><button class="nav-btn" onclick="scrollCards(-1)">&#8249;</button><span class="pill" id="flightCount">0 flights</span><button class="nav-btn" onclick="scrollCards(1)">&#8250;</button></div></div><div class="cards" id="flights"><div class="empty">No current flights.</div></div></section>
@@ -80,14 +88,16 @@ footer h4{color:var(--text);font-size:11px;letter-spacing:.15em;text-transform:u
  <div class="settings-grid">
   <div class="field"><label>Latitude</label><input type="number" id="lat" step="0.0001"></div><div class="field"><label>Longitude</label><input type="number" id="lon" step="0.0001"></div>
   <div class="field"><label>Radius km</label><input type="number" id="radius" min="1" max="500"></div><div class="field"><label>Brightness</label><input type="number" id="brightness" min="0" max="255"></div>
-  <div class="field"><label>Fetch interval sec</label><input type="number" id="fetch_sec" min="10" max="3600"></div><div class="field"><label>Card cycle sec</label><input type="number" id="cycle_sec" min="1" max="60"></div>
+  <div class="field"><label>Fetch interval sec</label><input type="number" id="fetch_sec" min="10" max="3600"></div><div class="field"><label>Card cycle sec</label><input type="number" id="cycle_sec" min="1" max="60"></div><div class="field"><label>Map display sec</label><input type="number" id="map_sec" min="5" max="300"></div>
+  <div class="field"><label>Map label colour <span class="info" data-tip="Colour used for enriched flight markers (dot, heading tick and callsign label) on BOTH the CYD map card and the WebUI map preview. Saved to NVS — applied to CYD on next boot.">&#9432;</span></label><input type="color" id="labelColor" value="#1e90ff" oninput="updateMapOverlay()" style="width:100%;height:38px;padding:2px;cursor:pointer"></div>
  </div>
+ <div id="mapwrap" style="margin:14px 0 0;display:none;border:1px solid var(--line);border-radius:12px;overflow:hidden;max-width:50%"><div style="display:flex;justify-content:space-between;align-items:center;padding:7px 14px;background:var(--panel2)"><span style="font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase">Map Preview</span><div style="display:flex;align-items:center;gap:10px"><label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);cursor:pointer;user-select:none"><input type="checkbox" id="showFlights" checked onchange="updateMapOverlay()" style="width:auto;margin:0;cursor:pointer"> Flights</label><button onclick="refreshMapPreview()" style="background:transparent;border:1px solid var(--line);color:var(--muted);font-size:11px;padding:3px 10px;border-radius:6px;cursor:pointer">&#8635; Refresh</button></div></div><div style="position:relative;line-height:0"><img id="maptile" style="width:100%;display:block" alt="Map preview"><svg id="mapol" viewBox="0 0 320 240" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none"></svg></div></div>
  <div class="credentials">
   <div class="field"><label>OpenSky Client ID <span id="oskyIdState"></span></label><input type="password" id="osky_id" placeholder="Leave blank to retain"><div class="cred-note"><input type="checkbox" id="clear_osky" style="width:auto"> Clear OpenSky credentials</div></div>
   <div class="field"><label>OpenSky Secret <span id="oskyState"></span></label><input type="password" id="osky_sec" placeholder="Leave blank to retain"></div>
   <div class="field"><label>AeroAPI Key <span id="aeroState"></span></label><input type="password" id="aero_key" placeholder="Leave blank to retain"><div class="cred-note"><input type="checkbox" id="clear_aero" style="width:auto"> Clear AeroAPI key</div></div>
  </div>
- <div class="actions"><span class="message" id="msg">Credential values are never returned to this page.</span><button id="save" onclick="saveConfig()">Save &amp; Reboot</button></div>
+ <div class="actions"><span class="message" id="msg">Credential values are never returned to this page.</span><div style="display:flex;gap:10px"><button id="mapfetch" style="background:var(--panel2);border:1px solid var(--line);color:var(--muted);font-weight:500;border-radius:9px;padding:11px 18px;cursor:pointer" onmouseover="this.style.borderColor='var(--amber)';this.style.color='var(--amber)'" onmouseout="this.style.borderColor='var(--line)';this.style.color='var(--muted)'" onclick="fetchMap(this)">Fetch Map</button><button id="save" onclick="saveConfig()">Save &amp; Reboot</button></div></div>
 </div></section>
 <footer>
 <div><h4>Contact</h4><div>Anthony Clarke</div><div><a href="mailto:anthonyjclarke [at] gmail.com">anthonyjclarke [@] gmail.com</a></div><div style="margin-top:8px"><a href="https://github.com/anthonyjclarke">GitHub</a> &middot; <a href="https://bsky.app/profile/anthonyjclarke.bsky.social">BlueSky</a> &middot; <a href="https://www.threads.net/@anthonyjclarke">Threads</a> &middot; <a href="https://www.linkedin.com/in/anthonyjclarke">LinkedIn</a></div></div>
@@ -96,7 +106,7 @@ footer h4{color:var(--text);font-size:11px;letter-spacing:.15em;text-transform:u
 <div class="ack">The Flight Wall CYD Edition &#8212; open-source ESP32 flight radar. Built with Arduino &amp; PlatformIO.</div>
 </div>
 <script>
-const $=id=>document.getElementById(id); let configLoaded=false;
+const $=id=>document.getElementById(id); let configLoaded=false; let g_mapFlights=[];
 const val=(v,fallback='--')=>(v===undefined||v===null||v==='')?fallback:v;
 const esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function fixed(v,n=1){return (v===undefined||v===null)?'--':Number(v).toFixed(n)}
@@ -115,7 +125,20 @@ function statusLines(f){
  return [`${fixed(f.distance_km)}km  ${alt}`,`${f.velocity_mps!=null?Math.round(f.velocity_mps*3.6)+'km/h':''}  ${f.heading_deg!=null?Math.round(f.heading_deg)+' deg':''}`];
 }
 function renderScreen(screen){
- const f=screen.flight; $('tft').dataset.wide=screen.width>400; $('resolution').textContent=`${screen.width||'--'} x ${screen.height||'--'} physical TFT`;
+ $('tft').dataset.wide=screen.width>400; $('resolution').textContent=screen.width?`— ${screen.width} × ${screen.height} physical`:'';
+ const isMap=screen.kind==='map';
+ $('map-pill').style.display=isMap?'':'none';
+ $('tft').style.display=isMap?'none':'';
+ $('tftmap').style.display=isMap?'':'none';
+ if(isMap){
+  const tile=$('tftmaptile');
+  if(!tile.src||tile.dataset.stale==='1'){tile.src='/api/mappreview?t='+Date.now();tile.dataset.stale='';}
+  if(tile.complete&&tile.naturalWidth)updateMapOverlay(tile,$('tftmapol'));
+  else tile.onload=function(){updateMapOverlay(tile,$('tftmapol'));};
+  $('scount').textContent='MAP';
+  return;
+ }
+ const f=screen.flight;
  if(!f){$('sident').textContent='SEARCHING...';$('scount').textContent='0/0';$('sroute').textContent='--- - ---';$('sairline').textContent='';$('saircraft').textContent='';$('sline1').textContent='';$('sline2').textContent='';$('sbar').style.width='0';return;}
  $('scount').textContent=`${screen.index+1}/${screen.total}`;$('sident').textContent=val(f.ident,'UNKNOWN');$('sroute').textContent=route(f);$('saircraft').textContent=val(f.aircraft_display,f.aircraft_code||'');
  $('sairline').innerHTML=''; if(f.logo){const img=document.createElement('img');img.src='/api/logo?name='+encodeURIComponent(f.logo);$('sairline').appendChild(img);}else $('sairline').textContent=val(f.airline,f.operator_icao||'');
@@ -139,19 +162,86 @@ function renderEvents(events){
  el.innerHTML=events.length?events.slice().reverse().map(e=>`<div class="event">${esc(e)}</div>`).join(''):'<div class="empty">Waiting for a fetch cycle...</div>';
  if(pinned)el.scrollTop=0;
 }
+function updateBusyBanner(busy,phase){
+ const el=$('busy-bar');
+ if(!busy){el.classList.remove('show');return;}
+ $('busy-text').textContent=phase?`Device busy: ${phase} — please do not refresh`:'Device busy — please do not refresh';
+ el.classList.add('show');
+}
 async function poll(){
- try{const d=await (await fetch('/api/live',{cache:'no-store'})).json();$('connection').textContent='Device live';$('clock').textContent=new Date().toLocaleTimeString();renderScreen(d.screen);renderFlights(d.flights);renderEvents(d.events);$('cardtime').textContent=d.last_fetch?`Last scan ${new Date(d.last_fetch*1000).toLocaleTimeString()}`:'';}catch(e){$('connection').textContent='Device unavailable';}
+ const ctrl=new AbortController();
+ const t=setTimeout(()=>ctrl.abort(),1500);
+ try{const d=await (await fetch('/api/live',{cache:'no-store',signal:ctrl.signal})).json();clearTimeout(t);
+ $('connection').textContent='Device live';$('clock').textContent=new Date().toLocaleTimeString();
+ const nu=$('nextupd');if(d.next_fetch_in===undefined){nu.style.display='none';}else if(d.busy){nu.textContent='Fetch in progress';nu.style.display='';}else if(d.next_fetch_in<0){nu.textContent='First fetch pending';nu.style.display='';}else{nu.textContent='Next update '+d.next_fetch_in+'s';nu.style.display='';}
+ renderScreen(d.screen);renderFlights(d.flights);renderEvents(d.events);
+ updateBusyBanner(d.busy,d.phase||'');
+ const al=$('api-alert');
+ if(d.api_error){al.textContent='⚠ '+d.api_error;al.style.display='block';}
+ else if(d.opensky_credits!==undefined&&d.opensky_credits<200){al.textContent='⚠ OpenSky credits critically low — '+d.opensky_credits+' remaining today. Raise fetch interval or wait for midnight reset.';al.style.display='block';}
+ else{al.style.display='none';}
+ if(d.opensky_credits!==undefined){const c=d.opensky_credits,el=$('credits');el.textContent=c+' API credits';el.style.color=c<200?'var(--red)':c<500?'var(--amber)':'var(--muted)';el.style.display='';}
+ g_mapFlights=d.flights||[];if($('mapwrap').style.display!=='none')updateMapOverlay();if($('tftmap').style.display!=='none'){var mt=$('tftmaptile');if(mt.complete&&mt.naturalWidth)updateMapOverlay(mt,$('tftmapol'));}
+ }catch(e){clearTimeout(t);updateBusyBanner(true,e.name==='AbortError'?'Awaiting response…':'');$('connection').textContent='Device busy';}
 }
 async function loadConfig(){
- try{const d=await(await fetch('/api/config',{cache:'no-store'})).json();['lat','lon','brightness','fetch_sec','cycle_sec'].forEach(k=>$(k).value=d[k]??'');$('radius').value=d.radius_km??'';$('oskyIdState').textContent=d.opensky_configured?'configured':'';$('oskyState').textContent=d.opensky_configured?'configured':'';$('aeroState').textContent=d.aero_configured?'configured':'';configLoaded=true;}catch(e){$('msg').textContent='Configuration unavailable';}
+ try{const d=await(await fetch('/api/config',{cache:'no-store'})).json();['lat','lon','brightness','fetch_sec','cycle_sec','map_sec'].forEach(k=>$(k).value=d[k]??'');$('radius').value=d.radius_km??'';if(d.label_color)$('labelColor').value=d.label_color;$('oskyIdState').textContent=d.opensky_configured?'configured':'';$('oskyState').textContent=d.opensky_configured?'configured':'';$('aeroState').textContent=d.aero_configured?'configured':'';configLoaded=true;updateMapOverlay();}catch(e){$('msg').textContent='Configuration unavailable';}
 }
 async function saveConfig(){
- const p={lat:parseFloat($('lat').value),lon:parseFloat($('lon').value),radius_km:Math.max(1,parseFloat($('radius').value)),fetch_sec:Math.max(10,parseInt($('fetch_sec').value)),cycle_sec:Math.max(1,parseInt($('cycle_sec').value)),brightness:Math.min(255,Math.max(0,parseInt($('brightness').value)))};
+ const p={lat:parseFloat($('lat').value),lon:parseFloat($('lon').value),radius_km:Math.max(1,parseFloat($('radius').value)),fetch_sec:Math.max(10,parseInt($('fetch_sec').value)),cycle_sec:Math.max(1,parseInt($('cycle_sec').value)),map_sec:Math.max(5,parseInt($('map_sec').value)),brightness:Math.min(255,Math.max(0,parseInt($('brightness').value))),label_color:$('labelColor').value};
  if($('clear_osky').checked){p.osky_id='';p.osky_sec='';}else{if($('osky_id').value)p.osky_id=$('osky_id').value;if($('osky_sec').value)p.osky_sec=$('osky_sec').value;}
  if($('clear_aero').checked)p.aero_key=''; else if($('aero_key').value)p.aero_key=$('aero_key').value;
  $('save').disabled=true;try{const r=await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});$('msg').textContent=r.ok?'Configuration saved. Device rebooting...':'Save failed.';}catch(e){$('msg').textContent='Save failed: '+e;$('save').disabled=false;}
 }
-loadConfig();poll();setInterval(poll,1000);
+function calcMapZoom(rKm,cLat,w,h){var cosLat=Math.max(0.01,Math.cos(cLat*Math.PI/180));var minDim=Math.min(w,Math.max(h-20,0));return Math.min(15,Math.max(8,Math.floor(Math.log2(minDim*40075*cosLat/(256*2.5*rKm)))));}
+function llToXY(lat,lon,cLat,cLon,zoom,w,h){var scale=256*Math.pow(2,zoom);var dx=(lon-cLon)*scale/360;var mLat=Math.log(Math.tan(Math.PI/4+lat*Math.PI/360));var mCtr=Math.log(Math.tan(Math.PI/4+cLat*Math.PI/360));return {x:w/2+dx,y:h/2-(mLat-mCtr)*scale/(2*Math.PI)};}
+function updateMapOverlay(imgEl,svgEl){
+ var img=imgEl||$('maptile'),svg=svgEl||$('mapol');
+ var w=img.naturalWidth,h=img.naturalHeight;
+ if(!w||!h)return;
+ var cx=w/2,cy=h/2,a='#f6a23a';
+ var rPx=Math.min(w,Math.max(h-20,0))/2.5;
+ svg.setAttribute('viewBox','0 0 '+w+' '+h);
+ var html=
+  '<circle cx="'+cx+'" cy="'+cy+'" r="'+rPx+'" fill="none" stroke="'+a+'" stroke-width="1.5" stroke-dasharray="6 4" opacity="0.85"/>'+
+  '<line x1="'+(cx-12)+'" y1="'+cy+'" x2="'+(cx+12)+'" y2="'+cy+'" stroke="'+a+'" stroke-width="1.5" opacity="0.9"/>'+
+  '<line x1="'+cx+'" y1="'+(cy-12)+'" x2="'+cx+'" y2="'+(cy+12)+'" stroke="'+a+'" stroke-width="1.5" opacity="0.9"/>'+
+  '<circle cx="'+cx+'" cy="'+cy+'" r="2.5" fill="'+a+'" opacity="0.95"/>';
+ var sf=$('showFlights');
+ if(sf&&sf.checked&&g_mapFlights.length){
+  var cLat=parseFloat($('lat').value),cLon=parseFloat($('lon').value),rKm=parseFloat($('radius').value);
+  if(!isNaN(cLat)&&!isNaN(cLon)&&!isNaN(rKm)){
+   var zoom=calcMapZoom(rKm,cLat,w,h),placed=[],lblH=14;
+   var userCol=$('labelColor')?$('labelColor').value:'#1e90ff';
+   g_mapFlights.forEach(function(f){
+    if(f.lat==null||f.lon==null)return;
+    var pt=llToXY(f.lat,f.lon,cLat,cLon,zoom,w,h),fx=pt.x,fy=pt.y;
+    if(fx<3||fx>w-3||fy<21||fy>h-3)return;
+    var col=userCol;
+    if(f.heading_deg!=null){var hr=f.heading_deg*Math.PI/180;html+='<line x1="'+fx.toFixed(1)+'" y1="'+fy.toFixed(1)+'" x2="'+(fx+Math.sin(hr)*10).toFixed(1)+'" y2="'+(fy-Math.cos(hr)*10).toFixed(1)+'" stroke="'+col+'" stroke-width="1.5"/>';}
+    html+='<circle cx="'+fx.toFixed(1)+'" cy="'+fy.toFixed(1)+'" r="4" fill="#000" opacity="0.5"/><circle cx="'+fx.toFixed(1)+'" cy="'+fy.toFixed(1)+'" r="3" fill="'+col+'"/>';
+    var lbl=(f.ident||f.icao24||'').substring(0,6);
+    if(!lbl)return;
+    var lblW=lbl.length*7+4;
+    var cands=[[fx+6,fy-lblH-1],[fx-lblW-4,fy-lblH-1],[fx+6,fy+4],[fx-lblW-4,fy+4]];
+    var lx=-1,ly=-1;
+    for(var c=0;c<4;c++){var px=cands[c][0],py=cands[c][1];if(px<0||px+lblW>w||py<21||py+lblH>h)continue;if(!placed.some(function(b){return px<b.x+b.w&&px+lblW>b.x&&py<b.y+b.h&&py+lblH>b.y;})){lx=px;ly=py;break;}}
+    if(lx>=0){html+='<text x="'+lx.toFixed(1)+'" y="'+(ly+lblH-2).toFixed(1)+'" font-family="monospace" font-size="12" fill="'+col+'" opacity="0.9">'+esc(lbl)+'</text>';placed.push({x:lx,y:ly,w:lblW,h:lblH});}
+   });
+  }
+ }
+ svg.innerHTML=html;
+}
+function refreshMapPreview(){var img=$('maptile');img.onerror=function(){$('mapwrap').style.display='none';};img.onload=function(){$('mapwrap').style.display='';updateMapOverlay();};img.src='/api/mappreview?t='+Date.now();var mt=$('tftmaptile');if(mt)mt.dataset.stale='1';}
+async function fetchMap(btn){
+ const lat=parseFloat($('lat').value),lon=parseFloat($('lon').value),r=parseFloat($('radius').value);
+ if(isNaN(lat)||isNaN(lon)||isNaN(r)){$('msg').textContent='Enter valid lat, lon and radius first.';return;}
+ btn.disabled=true;btn.textContent='Fetching…';$('msg').textContent='Map fetch sent — CYD will update in ~10s.';
+ try{const res=await fetch('/api/fetchmap',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lat,lon,radius_km:r})});
+ btn.textContent=res.ok?'Done!':'Failed';if(res.ok)setTimeout(refreshMapPreview,10000);}
+ catch(e){btn.textContent='Error';}
+ setTimeout(()=>{btn.disabled=false;btn.textContent='Fetch Map';},5000);}
+loadConfig();poll();setInterval(poll,1000);refreshMapPreview();
 </script></body></html>)rawlit";
 
 static String timestampNow()
@@ -181,7 +271,12 @@ static void addOptionalDouble(JsonObject object, const char *key, double value)
 static void addFlight(JsonObject object, const FlightInfo &flight)
 {
   object["enriched"] = flight.enriched;
-  object["ident"] = flight.ident;
+  // ident: preferred display callsign — mirrors CYDDisplay::resolveCallsign() so the
+  // WebUI shows the same form as the TFT (e.g. VA804 — IATA — rather than VOZ804 — ICAO).
+  // ident_icao and ident_iata remain available below for callers that need the raw values.
+  object["ident"] = flight.ident_iata.length() ? flight.ident_iata
+                  : flight.ident.length()      ? flight.ident
+                  :                              flight.ident_icao;
   object["ident_icao"] = flight.ident_icao;
   object["ident_iata"] = flight.ident_iata;
   object["operator"] = flight.operator_code;
@@ -218,7 +313,7 @@ static void addFlight(JsonObject object, const FlightInfo &flight)
     object["logo"] = logoName(flight.logo_path);
 }
 
-void WebUIServer::begin(const std::vector<FlightInfo> *flights, const CYDDisplay *display)
+void WebUIServer::begin(const std::vector<FlightInfo> *flights, CYDDisplay *display)
 {
   _flights = flights;
   _display = display;
@@ -227,6 +322,9 @@ void WebUIServer::begin(const std::vector<FlightInfo> *flights, const CYDDisplay
   _server.on("/api/config", HTTP_POST, [this] { onPostConfig(); });
   _server.on("/api/live", HTTP_GET, [this] { onGetLive(); });
   _server.on("/api/logo", HTTP_GET, [this] { onGetLogo(); });
+  _server.on("/api/fetchmap",   HTTP_POST, [this] { onFetchMap(); });
+  _server.on("/api/mappreview", HTTP_GET,  [this] { onGetMapPreview(); });
+  _server.on("/api/screenshot", HTTP_GET,  [this] { onGetScreenshot(); });
   _server.onNotFound([this] { onNotFound(); });
   _server.begin();
   appendEvent("Web dashboard ready; waiting for flight data.");
@@ -360,6 +458,7 @@ void WebUIServer::recordFetch(const std::vector<StateVector> &states,
                               size_t enriched)
 {
   _lastFetchEpoch = time(nullptr);
+  _lastFetchMs    = millis();
 
   // Summary in plain language
   String summary = String("Observed ") + String(states.size()) + " nearby aircraft";
@@ -391,21 +490,187 @@ void WebUIServer::recordFetch(const std::vector<StateVector> &states,
   }
 }
 
+void WebUIServer::setCreditsRemaining(int n)
+{
+  const bool wasAboveThreshold = _creditsRemaining < 0 || _creditsRemaining >= 300;
+  _creditsRemaining = n;
+  if (n >= 0 && n < 300 && wasAboveThreshold)
+  {
+    appendEvent(String("Warning: OpenSky credits low — ") + String(n) + " remaining today");
+    _creditsWarned = true;
+  }
+  else if (n >= 500)
+  {
+    _creditsWarned = false;
+  }
+}
+
 void WebUIServer::onRoot()
 {
   _server.sendHeader("Cache-Control", "no-cache, no-store");
   _server.send_P(200, "text/html", HTML_PAGE);
 }
 
+void WebUIServer::onFetchMap()
+{
+  const String body = _server.arg("plain");
+  DynamicJsonDocument doc(256);
+  if (deserializeJson(doc, body) || !doc.containsKey("lat") || !doc.containsKey("lon"))
+  {
+    _server.send(400, "application/json", "{\"error\":\"lat and lon required\"}");
+    return;
+  }
+
+  // Update RuntimeConfig in memory only — no NVS save, no reboot.
+  // ensureMapCached() will detect the change (coords differ from cached metadata)
+  // and re-fetch the map tile for these coordinates.
+  RuntimeConfig::setCenterLat(doc["lat"].as<double>());
+  RuntimeConfig::setCenterLon(doc["lon"].as<double>());
+  if (doc.containsKey("radius_km"))
+    RuntimeConfig::setRadiusKm(doc["radius_km"].as<double>());
+
+  DBG_INFO("WebUI: fetch map for %.5f,%.5f r=%.1fkm",
+           RuntimeConfig::centerLat(), RuntimeConfig::centerLon(), RuntimeConfig::radiusKm());
+  _server.sendHeader("Cache-Control", "no-cache, no-store");
+  _server.send(200, "application/json", "{\"ok\":true}");
+}
+
+void WebUIServer::onGetMapPreview()
+{
+  File f = LittleFS.open("/mapcache.jpg", "r");
+  if (!f)
+  {
+    _server.send(404, "text/plain", "No map cached — use Fetch Map first");
+    return;
+  }
+  _server.sendHeader("Cache-Control", "no-cache, no-store");
+  _server.streamFile(f, "image/jpeg");
+  f.close();
+}
+
+// ── /api/screenshot ──────────────────────────────────────────────────────────
+// Streams a 24-bit BMP of the live CYD framebuffer. Pixel readback uses
+// TFT_eSPI::readRectRGB (RGB888, no byte-swap); rows are converted to BMP's
+// BGR order in place and streamed via WebServer::sendContent.
+//
+// File sizes: 320×240 → 230,454 B  ·  480×320 → 460,854 B
+// Stack use:  1494 B (1440 row + 54 header)  — zero heap allocations.
+//
+// SPI safety: handleClient() runs synchronously in loop() so no concurrent
+// TFT writes can occur during the readback. Display freezes visually for
+// ~150–200 ms during capture; total transfer ~1–2 s on typical WiFi.
+//
+// Known risk: some ILI9341 clones do not implement the RAMRD (0x2E) command
+// — the resulting BMP will be black/garbled. Diagnostic: drop the
+// -DSPI_READ_FREQUENCY build flag from 20 MHz to 6.25 MHz and retry.
+void WebUIServer::onGetScreenshot()
+{
+  if (!_display)
+  {
+    _server.send(503, "text/plain", "Display not ready");
+    return;
+  }
+
+  const int16_t  w        = _display->width();
+  const int16_t  h        = _display->height();
+  const uint32_t rowBytes = (uint32_t)w * 3;
+  const uint32_t pixBytes = rowBytes * h;
+  const uint32_t fileSize = 54 + pixBytes;
+
+  // Row buffer sized for max-supported display width (480 px). Both
+  // 320×3=960 and 480×3=1440 are 4-byte aligned, so no BMP padding needed.
+  static constexpr int16_t MAX_W = 480;
+  if (w > MAX_W)
+  {
+    _server.send(500, "text/plain", "Display width exceeds screenshot buffer");
+    return;
+  }
+  uint8_t row[MAX_W * 3];   // 1440 B on stack
+
+  // ── BMP header (54 B) ──
+  // BITMAPFILEHEADER (14 B) + BITMAPINFOHEADER (40 B), all little-endian.
+  // biHeight is negative so pixel rows are stored top-to-bottom, matching
+  // the natural screen scan order.
+  uint8_t hdr[54] = {0};
+  auto le16 = [](uint8_t *p, uint16_t v) {
+    p[0] = v & 0xFF; p[1] = (v >> 8) & 0xFF;
+  };
+  auto le32 = [](uint8_t *p, uint32_t v) {
+    p[0] = v & 0xFF; p[1] = (v >> 8) & 0xFF;
+    p[2] = (v >> 16) & 0xFF; p[3] = (v >> 24) & 0xFF;
+  };
+  hdr[0] = 'B'; hdr[1] = 'M';
+  le32(hdr +  2, fileSize);          // file size
+  le32(hdr + 10, 54);                // pixel data offset
+  le32(hdr + 14, 40);                // DIB header size
+  le32(hdr + 18, (uint32_t)w);       // width
+  le32(hdr + 22, (uint32_t)(-h));    // height (negative → top-to-bottom)
+  le16(hdr + 26, 1);                 // colour planes
+  le16(hdr + 28, 24);                // bits per pixel
+  // bytes 30..53 already zero: BI_RGB compression, image size=0, ppm=0, palette=0
+
+  // ── Filename: timestamped if NTP synced, millis fallback before sync ──
+  char fname[40];
+  const time_t now = time(nullptr);
+  if (now > 1000000000L)
+  {
+    struct tm lt;
+    localtime_r(&now, &lt);
+    snprintf(fname, sizeof(fname),
+             "cyd_%04d%02d%02d_%02d%02d%02d.bmp",
+             lt.tm_year + 1900, lt.tm_mon + 1, lt.tm_mday,
+             lt.tm_hour, lt.tm_min, lt.tm_sec);
+  }
+  else
+  {
+    snprintf(fname, sizeof(fname), "cyd_t%lu.bmp", (unsigned long)millis());
+  }
+  char cd[80];
+  snprintf(cd, sizeof(cd), "attachment; filename=\"%s\"", fname);
+
+  // ── Stream ──
+  _server.sendHeader("Content-Disposition", cd);
+  _server.sendHeader("Cache-Control", "no-store");
+  _server.setContentLength(fileSize);
+  _server.send(200, "image/bmp", "");
+  _server.sendContent((const char *)hdr, 54);
+
+  const unsigned long t0 = millis();
+  for (int16_t y = 0; y < h; y++)
+  {
+    _display->readRectRGB(0, y, w, 1, row);
+    // readRectRGB returns R,G,B per pixel — BMP needs B,G,R. Swap in place.
+    for (int16_t i = 0; i < w; i++)
+    {
+      uint8_t tmp     = row[i * 3 + 0];
+      row[i * 3 + 0]  = row[i * 3 + 2];
+      row[i * 3 + 2]  = tmp;
+    }
+    _server.sendContent((const char *)row, rowBytes);
+  }
+  DBG_INFO("Screenshot: %s served (%u bytes, %lu ms)",
+           fname, (unsigned)fileSize, millis() - t0);
+}
+
 void WebUIServer::onGetConfig()
 {
-  DynamicJsonDocument doc(512);
+  DynamicJsonDocument doc(640);
   doc["lat"] = RuntimeConfig::centerLat();
   doc["lon"] = RuntimeConfig::centerLon();
   doc["radius_km"] = RuntimeConfig::radiusKm();
   doc["fetch_sec"] = RuntimeConfig::fetchIntervalSec();
   doc["cycle_sec"] = RuntimeConfig::displayCycleSec();
+  doc["map_sec"]   = RuntimeConfig::mapDisplaySec();
   doc["brightness"] = RuntimeConfig::brightness();
+  {
+    const uint16_t c = RuntimeConfig::labelColor();
+    uint8_t r = (c >> 11) & 0x1F; r = (r << 3) | (r >> 2);
+    uint8_t g = (c >>  5) & 0x3F; g = (g << 2) | (g >> 4);
+    uint8_t b =  c        & 0x1F; b = (b << 3) | (b >> 2);
+    char buf[8];
+    snprintf(buf, sizeof(buf), "#%02x%02x%02x", r, g, b);
+    doc["label_color"] = buf;
+  }
   doc["opensky_configured"] =
       RuntimeConfig::openskyClientId().length() && RuntimeConfig::openskyClientSecret().length();
   doc["aero_configured"] = RuntimeConfig::aeroApiKey().length() > 0;
@@ -439,7 +704,21 @@ void WebUIServer::onPostConfig()
   if (doc.containsKey("radius_km")) RuntimeConfig::setRadiusKm(doc["radius_km"].as<double>());
   if (doc.containsKey("fetch_sec")) RuntimeConfig::setFetchIntervalSec(doc["fetch_sec"].as<uint32_t>());
   if (doc.containsKey("cycle_sec")) RuntimeConfig::setDisplayCycleSec(doc["cycle_sec"].as<uint32_t>());
+  if (doc.containsKey("map_sec"))   RuntimeConfig::setMapDisplaySec(doc["map_sec"].as<uint32_t>());
   if (doc.containsKey("brightness")) RuntimeConfig::setBrightness(doc["brightness"].as<uint8_t>());
+  if (doc.containsKey("label_color"))
+  {
+    const char *hex = doc["label_color"].as<const char *>();
+    if (hex && hex[0] == '#' && strlen(hex) >= 7)
+    {
+      unsigned int r = 0, g = 0, b = 0;
+      if (sscanf(hex + 1, "%2x%2x%2x", &r, &g, &b) == 3)
+      {
+        const uint16_t rgb565 = (uint16_t)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
+        RuntimeConfig::setLabelColor(rgb565);
+      }
+    }
+  }
   if (doc.containsKey("osky_id")) RuntimeConfig::setOpenskyClientId(doc["osky_id"].as<String>());
   if (doc.containsKey("osky_sec")) RuntimeConfig::setOpenskyClientSecret(doc["osky_sec"].as<String>());
   if (doc.containsKey("aero_key")) RuntimeConfig::setAeroApiKey(doc["aero_key"].as<String>());
@@ -456,12 +735,20 @@ void WebUIServer::onGetLive()
   JsonObject screen = doc.createNestedObject("screen");
   screen["width"] = _display ? _display->width() : 0;
   screen["height"] = _display ? _display->height() : 0;
-  const size_t total = _flights ? _flights->size() : 0;
-  const size_t index = total && _display ? _display->currentFlightIndex() % total : 0;
-  screen["total"] = total;
-  screen["index"] = index;
-  if (total)
-    addFlight(screen.createNestedObject("flight"), (*_flights)[index]);
+  // CYDDisplay::displayFlights() cycles through flights.size() + 1 slots — the +1
+  // is the radar map card. Mirror that exact logic here so the WebUI knows which
+  // slot is currently on the TFT (flight N or the map). Without the +1 the modulo
+  // collapses the map slot back to flight #0 and the WebUI never sees the map.
+  const size_t flightCount = _flights ? _flights->size() : 0;
+  const size_t totalSlots  = flightCount + 1;
+  const size_t rawIdx      = _display ? _display->currentFlightIndex() : 0;
+  const size_t slotIdx     = totalSlots ? rawIdx % totalSlots : 0;
+  const bool   isMap       = flightCount && (slotIdx == flightCount);
+  screen["total"] = flightCount;
+  screen["index"] = isMap ? flightCount : slotIdx;
+  screen["kind"]  = isMap ? "map" : "flight";
+  if (!isMap && flightCount)
+    addFlight(screen.createNestedObject("flight"), (*_flights)[slotIdx]);
 
   JsonArray flightsArr = doc.createNestedArray("flights");
   if (_flights)
@@ -474,6 +761,23 @@ void WebUIServer::onGetLive()
   for (size_t i = 0; i < _eventCount; i++)
     events.add(_events[(_eventStart + i) % EVENT_CAPACITY]);
   doc["last_fetch"] = (unsigned long)_lastFetchEpoch;
+  // next_fetch_in: seconds until the next scheduled fetch. -1 = no fetch yet (startup grace);
+  // 0 = due now or overdue. Driven by millis() not wall-clock to avoid browser/device skew.
+  {
+    int32_t nextIn = -1;
+    if (_lastFetchEpoch != 0)
+    {
+      const unsigned long intervalMs = RuntimeConfig::fetchIntervalSec() * 1000UL;
+      const unsigned long elapsed    = millis() - _lastFetchMs;
+      nextIn = (elapsed >= intervalMs) ? 0
+                                       : (int32_t)((intervalMs - elapsed + 999UL) / 1000UL);
+    }
+    doc["next_fetch_in"] = nextIn;
+  }
+  if (_creditsRemaining >= 0) doc["opensky_credits"] = _creditsRemaining;
+  if (_apiError.length()) doc["api_error"] = _apiError;
+  doc["busy"]  = _busy;
+  doc["phase"] = _phase;
 
   String out;
   serializeJson(doc, out);

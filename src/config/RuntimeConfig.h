@@ -20,9 +20,11 @@ namespace RuntimeConfig
   // Timing
   uint32_t fetchIntervalSec();
   uint32_t displayCycleSec();
+  uint32_t mapDisplaySec();
 
   // Display
   uint8_t  brightness();
+  uint16_t labelColor();   // RGB565 — applied to enriched flight markers on both CYD and WebUI maps
 
   // API credentials
   String   openskyClientId();
@@ -35,7 +37,9 @@ namespace RuntimeConfig
   void setRadiusKm(double v);
   void setFetchIntervalSec(uint32_t v);
   void setDisplayCycleSec(uint32_t v);
+  void setMapDisplaySec(uint32_t v);
   void setBrightness(uint8_t v);
+  void setLabelColor(uint16_t v);
   void setOpenskyClientId(const String &v);
   void setOpenskyClientSecret(const String &v);
   void setAeroApiKey(const String &v);

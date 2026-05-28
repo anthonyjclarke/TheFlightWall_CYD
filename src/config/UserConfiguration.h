@@ -23,4 +23,6 @@ namespace UserConfiguration
     static constexpr uint16_t COLOR_MESSAGE      = 0xFFFF; // white
     static constexpr uint16_t COLOR_PROGRESS     = 0x07E0; // green — filled portion of bar
     static constexpr uint16_t COLOR_PROGRESS_BG  = 0x01C0; // dark green — unfilled portion
+    static constexpr uint16_t COLOR_MAP_UNENR    = 0x07FF; // cyan  — ADS-B-only flight dot on map
+    static constexpr uint16_t COLOR_MAP_LABEL    = 0x0011; // dark blue (#00008B) — enriched flight label on map (overridable via WebUI)
 }

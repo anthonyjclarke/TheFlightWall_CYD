@@ -1,6 +1,6 @@
 # FlightWall — CYD Edition
 
-ESP32 flight tracker displaying live nearby aircraft on a CYD TFT and embedded web dashboard. OpenSky ADS-B state vectors (OAuth2) → AeroAPI enrichment → FlightWall CDN name lookup → cycling flight card. Current version: 1.0.1.
+ESP32 flight tracker displaying live nearby aircraft on a CYD TFT and embedded web dashboard. OpenSky ADS-B state vectors (OAuth2) → AeroAPI enrichment → FlightWall CDN name lookup → cycling flight card. Current version: 1.2.0.
 
 ---
 
@@ -11,7 +11,7 @@ ESP32 flight tracker displaying live nearby aircraft on a CYD TFT and embedded w
 | `cyd_320x240`  | ESP32-2432S028R  | ILI9341 | 320 × 240  | GPIO 21 |
 | `cyd_480x320`  | ESP32-3248S035R  | ST7796  | 480 × 320  | GPIO 27 — **verify against your board revision** |
 
-Standard CYD SPI pins apply to both (MOSI=13, SCLK=14, CS=15, DC=2, RST=-1, TOUCH_CS=33).
+Standard CYD SPI pins apply to both (MOSI=13, MISO=12, SCLK=14, CS=15, DC=2, RST=-1, TOUCH_CS=33). **MISO=12** is required for `/api/screenshot` framebuffer readback — without it `TFT_eSPI::readRectRGB()` reads a floating bus and returns all `0xFF` (all-white BMP). GPIO 12 is an ESP32 strapping pin (MTDI); usually safe because the ILI9341 tri-states MISO at boot, but revert if a specific board pulls it high and bootloops. `SPI_READ_FREQUENCY` is held at 6.25 MHz for read reliability on the CYD's unterminated MISO trace.
 
 ---
 
@@ -33,7 +33,11 @@ Standard CYD SPI pins apply to both (MOSI=13, SCLK=14, CS=15, DC=2, RST=-1, TOUC
 
 **AeroAPI flight record selection.** `AeroAPIFetcher` scans the full `flights[]` array only after NTP is synchronized and selects a plausible live record: departed but not arrived, arrived within a 30-minute grace window, or a bounded departure with no known arrival time. It prioritizes active flights and returns false if all records are historical or future. Never reintroduce index-zero fallback: a live callsign commonly returns old legs, which must remain ADS-B-only rather than displaying false route data. In ArduinoJson v6, the filter's `[0]` index acts as a template applied to all array elements.
 
-**Web dashboard data path.** `WebUIServer` receives pointers to `g_flights` and `CYDDisplay`, and `main.cpp` records each completed fetch into a volatile 50-entry activity ring via `recordFetch()`. `GET /api/live` serves the selected display card, activity events and at most five `enriched` detail records; `GET /api/logo` serves cached LittleFS images. The TFT mirror is browser-rendered deliberately, not a framebuffer pixel readback, to avoid extra SPI and transfer cost on the ESP32. `GET /api/config` exposes only `opensky_configured` / `aero_configured` boolean flags — never the stored credential strings. `POST /api/config` saves to NVS and sets `_pendingReboot`; `main.cpp` reads `shouldReboot()` and triggers `ESP.restart()` after a 400 ms millis delay so the response can flush.
+**Web dashboard data path.** `WebUIServer` receives pointers to `g_flights` and `CYDDisplay`, and `main.cpp` records each completed fetch into a volatile 50-entry activity ring via `recordFetch()`. `GET /api/live` serves the selected display card, **all** `g_flights` (not capped — cap was removed in v0.14.0), activity events, busy/phase state and a `next_fetch_in` countdown; `GET /api/logo` serves cached LittleFS images. The TFT-mirror flight-card render is browser-rendered deliberately (not a framebuffer readback) for low SPI/network cost — but the *map-card* mirror does fetch the cached map JPEG from `/api/mappreview` plus an SVG overlay, since browser-side recreation is not pixel-accurate. `GET /api/screenshot` is the framebuffer-readback path, used on demand only for documentation captures. `GET /api/config` exposes only `opensky_configured` / `aero_configured` boolean flags — never the stored credential strings. `POST /api/config` saves to NVS and sets `_pendingReboot`; `main.cpp` reads `shouldReboot()` and triggers `ESP.restart()` after a 400 ms millis delay so the response can flush.
+
+**Slot-tracking parity.** `WebUIServer::onGetLive()` must mirror `CYDDisplay::displayFlights()` exactly when computing the current slot: `totalSlots = flights.size() + 1` (the +1 is the map card), `slotIdx = currentFlightIndex % totalSlots`. Emit `screen.kind = "map"` when `slotIdx == flights.size()`, otherwise `"flight"` with the flight detail. Do **not** apply `% flights.size()` — that collapses the map slot back to flight #0 and makes it invisible to the dashboard. The bug existed from v1.1.0 until v1.2.0.
+
+**Countdown timer source-of-truth.** `_lastFetchMs` is tracked in `WebUIServer` (set alongside `_lastFetchEpoch` in `recordFetch`). `next_fetch_in` in `/api/live` is computed from `millis()` arithmetic, not epoch arithmetic, so the countdown is immune to NTP drift or browser/device clock skew. Sentinel `-1` means "no fetch yet" (startup grace); `0` means "due now / overdue".
 
 **FlightWall CDN brand colour dead code.** `FlightWallFetcher::getAirlineData` still parses an optional `brand_color_hex` from the FlightWall CDN response, but as of May 2026 the CDN endpoint returns only `icao` and `display_name_full` — no colour field. `airline_color` therefore remains at the `FlightInfo` default (`0xFFFF` white) and `CYDDisplay` falls back to `UserConfiguration::COLOR_AIRLINE`. Do not assume runtime airline colours will ever differ from white. The cached JPEG logo is now the only per-airline visual cue.
 
@@ -51,8 +55,6 @@ Standard CYD SPI pins apply to both (MOSI=13, SCLK=14, CS=15, DC=2, RST=-1, TOUC
 
 ---
 
----
-
 ## Credentials & secrets
 
 `include/secrets.h` (gitignored) — copy from `include/secrets.h.template`. Pulled into `src/config/APIConfiguration.h` via `__has_include("secrets.h")`. Runtime API credential replacements are written from the dashboard to NVS; the configuration GET response exposes only configured flags, never stored secret text. WiFiManager manages WiFi credentials separately.
@@ -63,14 +65,14 @@ Standard CYD SPI pins apply to both (MOSI=13, SCLK=14, CS=15, DC=2, RST=-1, TOUC
 
 `src/config/RuntimeConfig` is the single source of truth for all user-tuneable values at runtime. It is backed by NVS via `Preferences` (namespace `"flightwall"`). Load order: NVS value → compile-time default from `UserConfiguration` / `TimingConfiguration` / `HardwareConfiguration` / `APIConfiguration`.
 
-NVS keys: `ctr_lat`, `ctr_lon`, `radius_km`, `fetch_sec`, `cycle_sec`, `brightness`, `osky_id`, `osky_sec`, `aero_key`.
+NVS keys: `ctr_lat`, `ctr_lon`, `radius_km`, `fetch_sec`, `cycle_sec`, `map_sec`, `brightness`, `lbl_col`, `osky_id`, `osky_sec`, `aero_key`.
 
 - `UserConfiguration.h`, `TimingConfiguration.h` compile-time constants remain as fallback defaults only — do not read them directly from fetchers or display code; use `RuntimeConfig::*()` instead.
 - `APIConfiguration.h` still owns non-user-configurable values (URLs, TLS flags) — keep it for those; credentials come from `RuntimeConfig`.
 
 ## WebUI
 
-`src/adapters/WebUIServer` runs `WebServer` on port 80. Routes: `GET /` (dashboard HTML), `GET /api/live` (screen, enriched records and activity JSON), `GET /api/logo` (cached JPEG), `GET /api/config` (non-sensitive runtime JSON), and `POST /api/config` (save to NVS and request reboot). Credentials are write-only: blank POST credential values preserve existing data unless the matching clear flag is supplied. `main.cpp` polls `shouldReboot()` each loop tick and calls `ESP.restart()` after a 400 ms delay to allow TCP flush.
+`src/adapters/WebUIServer` runs `WebServer` on port 80. Routes: `GET /` (dashboard HTML), `GET /api/live` (all `g_flights` cards, activity feed, busy/phase state, JSON), `GET /api/logo` (cached JPEG), `GET /api/config` (non-sensitive runtime JSON including `label_color` as `#rrggbb`), `POST /api/config` (save to NVS and request reboot), `POST /api/fetchmap` (update centre/radius in memory and re-fetch map tile without NVS save), `GET /api/mappreview` (stream cached `mapcache.jpg` from LittleFS), `GET /api/screenshot` (24-bit BMP framebuffer dump via `TFT_eSPI::readRectRGB` — uses `readRectRGB` rather than `readRect` because the latter byte-swaps for `pushRect` compatibility). Credentials are write-only: blank POST credential values preserve existing data unless the matching clear flag is supplied. `main.cpp` polls `shouldReboot()` each loop tick and calls `ESP.restart()` after a 400 ms delay to allow TCP flush.
 
 ## Build notes
 
