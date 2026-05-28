@@ -4,6 +4,12 @@ Outstanding features and code optimisations are tracked separately in [TODO.md](
 
 ---
 
+## [Unreleased] — building toward v1.3.0
+
+Pull from [TODO.md](TODO.md) as items land. Sections to populate: **Added**, **Changed**, **Fixed**, **Documentation**.
+
+---
+
 ## [1.2.0] 29-05-2026
 
 ### Added
