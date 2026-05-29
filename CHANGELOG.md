@@ -4,7 +4,7 @@ Outstanding features and code optimisations are tracked separately in [TODO.md](
 
 ---
 
-## [Unreleased]
+## [Unreleased] — building toward v1.4.0
 
 ---
 
