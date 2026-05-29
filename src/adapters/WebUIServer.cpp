@@ -6,6 +6,7 @@
 #include <time.h>
 #include "CYDDisplay.h"
 #include "RuntimeConfig.h"
+#include "Version.h"
 #include "debug.h"
 
 // Single-file dashboard application. Data is polled from the device so the
@@ -15,27 +16,31 @@ static const char HTML_PAGE[] PROGMEM = R"rawlit(<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>The Flight Wall &#8212; CYD v1.3.0-dev</title>
+<title>The Flight Wall &#8212; CYD v)rawlit" FW_VERSION_STR R"rawlit(</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IlRoZSBGbGlnaHQgV2FsbCI+CiAgCiAgPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTIiIHJ5PSIxMiIgZmlsbD0iIzA2MDkwZSI+PC9yZWN0PgogIAogIDxjaXJjbGUgY3g9IjMyIiBjeT0iMzIiIHI9IjIyIiBmaWxsPSJub25lIiBzdHJva2U9IiNmZjliMmUiIHN0cm9rZS1vcGFjaXR5PSIwLjQ1IiBzdHJva2Utd2lkdGg9IjEuNSI+PC9jaXJjbGU+CiAgPGNpcmNsZSBjeD0iMzIiIGN5PSIzMiIgcj0iMTMiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2ZmOWIyZSIgc3Ryb2tlLW9wYWNpdHk9IjAuNzUiIHN0cm9rZS13aWR0aD0iMS41Ij48L2NpcmNsZT4KICAKICA8bGluZSB4MT0iMTAiIHkxPSIzMiIgeDI9IjU0IiB5Mj0iMzIiIHN0cm9rZT0iI2ZmOWIyZSIgc3Ryb2tlLW9wYWNpdHk9IjAuMiIgc3Ryb2tlLXdpZHRoPSIxIj48L2xpbmU+CiAgPGxpbmUgeDE9IjMyIiB5MT0iMTAiIHgyPSIzMiIgeTI9IjU0IiBzdHJva2U9IiNmZjliMmUiIHN0cm9rZS1vcGFjaXR5PSIwLjIiIHN0cm9rZS13aWR0aD0iMSI+PC9saW5lPgogIAogIDxwYXRoIGQ9Ik0gMzIgMzIgTCAzMiAxMCBBIDIyIDIyIDAgMCAxIDUxLjA1IDIxIFoiIGZpbGw9IiNmZjliMmUiIG9wYWNpdHk9IjAuNiI+PC9wYXRoPgogIAogIDxjaXJjbGUgY3g9IjMyIiBjeT0iMzIiIHI9IjIuNSIgZmlsbD0iI2ZmOWIyZSI+PC9jaXJjbGU+Cjwvc3ZnPg==">
 <style>
-:root{--bg:#060a0e;--panel:#0c1218;--panel2:#111a21;--line:#1d2b34;--muted:#71808b;--text:#e8edf0;--amber:#f6a23a;--green:#48d095;--blue:#58a8c9;--red:#e87063;--glow:rgba(246,162,58,.17)}
-*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:Inter,"Avenir Next",system-ui,sans-serif}
-body{background-image:radial-gradient(circle at 18% 0,rgba(246,162,58,.08),transparent 32rem),linear-gradient(135deg,#060a0e,#080f13 62%,#060a0e)}
+:root{--bg:#06090e;--panel:#0c1218;--panel2:#111a21;--line:#1d2b34;--ink-dim:#8a8f99;--ink:#f3f4f6;--amber:#ff9b2e;--green:#3ddc7a;--cyan:#5fb7d6;--red:#e87063;--glow:rgba(255,155,46,.17);--font-display:"Space Grotesk",system-ui,sans-serif;--font-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Consolas,monospace}
+/* Inline-logo SVG text styling — SVG fills inherit from these via the .wordmark/.subline classes */
+.wordmark{font:600 22px/1 var(--font-display);fill:var(--ink)}
+.subline{font:500 10px/1 var(--font-display);fill:var(--amber);letter-spacing:.18em}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:var(--font-display)}
+body{background-image:radial-gradient(circle at 18% 0,rgba(255,155,46,.08),transparent 32rem),linear-gradient(135deg,#06090e,#080f13 62%,#06090e)}
 .shell{max-width:1380px;margin:auto;padding:24px}
 header{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:22px}
-.brand small,.eyebrow{display:block;color:var(--amber);font-size:11px;letter-spacing:.22em;text-transform:uppercase;margin-bottom:9px}
+.eyebrow{display:block;color:var(--amber);font-size:11px;letter-spacing:.22em;text-transform:uppercase;margin-bottom:9px}
 h1{font-size:clamp(26px,3vw,38px);font-weight:540;line-height:1;margin:0;letter-spacing:-.04em}
-.status{display:flex;align-items:center;gap:12px;border:1px solid var(--line);background:rgba(12,18,24,.75);border-radius:30px;padding:9px 15px;font-size:13px;color:var(--muted)}
+.status{display:flex;align-items:center;gap:12px;border:1px solid var(--line);background:rgba(12,18,24,.75);border-radius:30px;padding:9px 15px;font-size:13px;color:var(--ink-dim)}
 .dot{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 12px var(--green)}
 .api-alert{display:none;padding:7px 24px;font-size:13px;font-weight:500;background:rgba(232,112,99,.12);border-bottom:1px solid var(--red);color:var(--red)}
-.busy-bar{display:none;padding:7px 24px;font-size:13px;font-weight:500;background:rgba(246,162,58,.10);border-bottom:1px solid var(--amber);color:var(--amber);align-items:center;gap:10px}
+.busy-bar{display:none;padding:7px 24px;font-size:13px;font-weight:500;background:rgba(255,155,46,.10);border-bottom:1px solid var(--amber);color:var(--amber);align-items:center;gap:10px}
 .busy-bar.show{display:flex}
 .busy-dot{flex-shrink:0;width:8px;height:8px;border-radius:50%;background:var(--amber);animation:pulse 1.2s infinite ease-in-out}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.7)}}
 .grid{display:grid;grid-template-columns:minmax(350px,520px) minmax(350px,1fr);gap:18px;margin-bottom:18px}
 .panel{background:linear-gradient(145deg,rgba(15,23,29,.94),rgba(8,13,18,.96));border:1px solid var(--line);border-radius:18px;box-shadow:0 16px 44px rgba(0,0,0,.22);overflow:hidden}
 .panel-head{display:flex;justify-content:space-between;align-items:center;padding:18px 20px 12px}
-.panel-title{font-size:12px;color:var(--muted);letter-spacing:.16em;text-transform:uppercase}
-.pill{border:1px solid #223641;padding:4px 10px;border-radius:20px;color:var(--blue);font-size:11px}
+.panel-title{font-size:12px;color:var(--ink-dim);letter-spacing:.16em;text-transform:uppercase}
+.pill{border:1px solid #223641;padding:4px 10px;border-radius:20px;color:var(--cyan);font-size:11px}
 .monitor-wrap{padding:10px 20px 23px}
 .bezel{background:#121a20;border-radius:16px;padding:14px;box-shadow:inset 0 0 0 1px #29343c,0 22px 36px rgba(0,0,0,.35)}
 .tft{width:100%;aspect-ratio:4/3;background:#000;border-radius:4px;display:flex;flex-direction:column;color:#fff;font-family:Arial,sans-serif;overflow:hidden}
@@ -51,34 +56,34 @@ h1{font-size:clamp(26px,3vw,38px);font-weight:540;line-height:1;margin:0;letter-
 .tft-status{flex:1;padding:5% 4% 0;color:#c8d0d5;font-size:clamp(12px,1.23vw,17px)}
 .tft-status div{margin-bottom:7px}
 .bar{height:5%;margin:0 3% 3%;background:#053820}.bar span{display:block;height:100%;background:#16b760;width:0}
-.monitor-foot{display:flex;justify-content:space-between;color:var(--muted);font-size:12px;padding-top:14px}
-.stream{height:390px;overflow:auto;padding:4px 20px 20px;font-family:"SFMono-Regular",ui-monospace,monospace;font-size:12px}
+.monitor-foot{display:flex;justify-content:space-between;color:var(--ink-dim);font-size:12px;padding-top:14px}
+.stream{height:390px;overflow:auto;padding:4px 20px 20px;font-family:var(--font-mono);font-size:12px}
 .event{padding:10px 0;border-bottom:1px solid rgba(29,43,52,.72);line-height:1.55;color:#c4ced4}
-.event:first-child{color:#e7ecee}.empty{color:var(--muted);padding:22px 0}
-.section{margin-bottom:18px}.cards{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(230px,280px);gap:12px;padding:0 18px 18px;overflow-x:auto;scroll-behavior:smooth;-webkit-overflow-scrolling:touch}.cards::-webkit-scrollbar{height:4px}.cards::-webkit-scrollbar-thumb{background:var(--line);border-radius:2px}.nav-btn{background:transparent;border:1px solid var(--line);color:var(--muted);width:26px;height:26px;border-radius:6px;font-size:18px;line-height:1;cursor:pointer;padding:0;display:inline-flex;align-items:center;justify-content:center}.nav-btn:hover{border-color:var(--amber);color:var(--amber);background:rgba(246,162,58,.1)}.tag-adsb{color:var(--blue);border-color:rgba(88,168,201,.32)}
+.event:first-child{color:#e7ecee}.empty{color:var(--ink-dim);padding:22px 0}
+.section{margin-bottom:18px}.cards{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(230px,280px);gap:12px;padding:0 18px 18px;overflow-x:auto;scroll-behavior:smooth;-webkit-overflow-scrolling:touch}.cards::-webkit-scrollbar{height:4px}.cards::-webkit-scrollbar-thumb{background:var(--line);border-radius:2px}.nav-btn{background:transparent;border:1px solid var(--line);color:var(--ink-dim);width:26px;height:26px;border-radius:6px;font-size:18px;line-height:1;cursor:pointer;padding:0;display:inline-flex;align-items:center;justify-content:center}.nav-btn:hover{border-color:var(--amber);color:var(--amber);background:rgba(255,155,46,.1)}.tag-adsb{color:var(--cyan);border-color:rgba(95,183,214,.32)}
 .flight{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:15px;min-height:250px}
 .flight-id{display:flex;justify-content:space-between;align-items:start;margin-bottom:15px}.flight h3{font-size:22px;margin:0;letter-spacing:-.02em}
 .tag{color:var(--green);border:1px solid rgba(72,208,149,.32);font-size:10px;border-radius:12px;padding:3px 7px;letter-spacing:.1em}
-.route{font-size:22px;color:var(--amber);font-weight:650;margin-bottom:4px}.city{font-size:12px;color:var(--muted);min-height:32px;margin-bottom:12px}
-.facts{display:grid;grid-template-columns:1fr 1fr;gap:10px 8px}.fact span{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.11em;margin-bottom:3px}.fact b{font-size:13px;font-weight:500}
-.settings{padding:0 20px 22px}.settings-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.field label{display:block;color:var(--muted);font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin:0 0 6px}
-input{width:100%;background:#0a1015;border:1px solid var(--line);border-radius:8px;padding:9px 10px;color:var(--text);font-size:13px}input:focus{outline:none;border-color:var(--amber)}
-.credentials{margin-top:16px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.cred-note{font-size:11px;color:var(--muted);margin-top:6px}.configured{color:var(--green)}
+.route{font-size:22px;color:var(--amber);font-weight:650;margin-bottom:4px}.city{font-size:12px;color:var(--ink-dim);min-height:32px;margin-bottom:12px}
+.facts{display:grid;grid-template-columns:1fr 1fr;gap:10px 8px}.fact span{display:block;color:var(--ink-dim);font-size:10px;text-transform:uppercase;letter-spacing:.11em;margin-bottom:3px}.fact b{font-size:13px;font-weight:500}
+.settings{padding:0 20px 22px}.settings-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.field label{display:block;color:var(--ink-dim);font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin:0 0 6px}
+input{width:100%;background:#0a1015;border:1px solid var(--line);border-radius:8px;padding:9px 10px;color:var(--ink);font-size:13px}input:focus{outline:none;border-color:var(--amber)}
+.credentials{margin-top:16px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.cred-note{font-size:11px;color:var(--ink-dim);margin-top:6px}.configured{color:var(--green)}
 .info{display:inline-block;position:relative;color:var(--amber);cursor:help;font-size:13px;margin-left:4px;text-transform:none;letter-spacing:0}
 .info::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 7px);left:50%;transform:translateX(-50%);width:260px;background:#1d2b34;color:#e8edf0;font-size:11px;font-weight:400;line-height:1.5;text-transform:none;letter-spacing:0;padding:8px 10px;border-radius:7px;border:1px solid var(--line);white-space:normal;pointer-events:none;opacity:0;transition:opacity .15s;z-index:200}
 .info:hover::after{opacity:1}
-.actions{display:flex;justify-content:space-between;align-items:center;margin-top:18px;gap:10px}.message{font-size:13px;color:var(--muted)}
+.actions{display:flex;justify-content:space-between;align-items:center;margin-top:18px;gap:10px}.message{font-size:13px;color:var(--ink-dim)}
 button{background:var(--amber);border:0;border-radius:9px;padding:11px 18px;font-weight:650;cursor:pointer;color:#181005}button:disabled{opacity:.45;cursor:default}
 @media(max-width:1120px){.settings-grid,.credentials{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:800px){.shell{padding:14px}.grid{grid-template-columns:1fr}.stream{height:280px}.settings-grid,.credentials{grid-template-columns:1fr}header{align-items:start;flex-direction:column}}
-footer{margin-top:28px;padding:22px 0 8px;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 2fr;gap:24px;color:var(--muted);font-size:12px}
-footer h4{color:var(--text);font-size:11px;letter-spacing:.15em;text-transform:uppercase;margin:0 0 8px}footer a{color:var(--blue);text-decoration:none}footer a:hover{text-decoration:underline}
-.ack{font-size:11px;color:var(--muted);text-align:center;padding:12px 0 4px;border-top:1px solid var(--line);margin-top:16px}
+footer{margin-top:28px;padding:22px 0 8px;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 2fr;gap:24px;color:var(--ink-dim);font-size:12px}
+footer h4{color:var(--ink);font-size:11px;letter-spacing:.15em;text-transform:uppercase;margin:0 0 8px}footer a{color:var(--cyan);text-decoration:none}footer a:hover{text-decoration:underline}
+.ack{font-size:11px;color:var(--ink-dim);text-align:center;padding:12px 0 4px;border-top:1px solid var(--line);margin-top:16px}
 @media(max-width:800px){footer{grid-template-columns:1fr}}
 </style>
 </head>
 <body><div class="shell">
-<header><div class="brand"><small>The Flight Wall &middot; CYD Edition</small><h1>The Flight Wall <span style="font-size:18px;opacity:.45;font-weight:400;letter-spacing:.02em">v1.3.0-dev</span></h1></div><div class="status"><span class="dot"></span><span id="connection">Connecting to device</span><span id="clock"></span><span id="nextupd" style="display:none;padding-left:10px;border-left:1px solid var(--line);margin-left:4px"></span><span id="credits" style="display:none;padding-left:10px;border-left:1px solid var(--line);margin-left:4px"></span></div></header><div class="api-alert" id="api-alert"></div><div class="busy-bar" id="busy-bar"><span class="busy-dot"></span><span id="busy-text">Device busy</span></div>
+<header><div class="brand"><svg viewBox="0 0 360 80" xmlns="http://www.w3.org/2000/svg" aria-label="The Flight Wall &#8212; CYD Edition" style="height:54px;width:auto;display:block"><g transform="translate(18 9)"><circle cx="31" cy="31" r="27" fill="none" stroke="#ff9b2e" stroke-opacity=".45"/><circle cx="31" cy="31" r="16" fill="none" stroke="#ff9b2e" stroke-opacity=".7"/><line x1="4" y1="31" x2="58" y2="31" stroke="#ff9b2e" stroke-opacity=".18"/><line x1="31" y1="4" x2="31" y2="58" stroke="#ff9b2e" stroke-opacity=".18"/><path d="M31 31L31 4A27 27 0 0 1 54.38 17.5Z" fill="#ff9b2e" opacity=".55"/><circle cx="31" cy="31" r="2.5" fill="#ff9b2e"/></g><text class="wordmark" x="96" y="37">The Flight Wall</text><text class="subline" x="96" y="58">CYD EDITION</text></svg><small style="display:block;color:var(--ink-dim);font-size:11px;letter-spacing:.05em;margin-top:6px;padding-left:2px">v)rawlit" FW_VERSION_STR R"rawlit(</small></div><div class="status"><span class="dot"></span><span id="connection">Connecting to device</span><span id="clock"></span><span id="nextupd" style="display:none;padding-left:10px;border-left:1px solid var(--line);margin-left:4px"></span><span id="credits" style="display:none;padding-left:10px;border-left:1px solid var(--line);margin-left:4px"></span></div></header><div class="api-alert" id="api-alert"></div><div class="busy-bar" id="busy-bar"><span class="busy-dot"></span><span id="busy-text">Device busy</span></div>
 <div class="grid">
  <section class="panel"><div class="panel-head"><span class="panel-title">TFT Mirror <span id="resolution" style="font-weight:400;opacity:.55;font-size:14px;letter-spacing:.01em;text-transform:none"></span></span><div style="display:flex;gap:8px;align-items:center"><span class="pill" id="map-pill" style="display:none;color:var(--amber);border-color:var(--amber)">&#9673; MAP CARD</span><span class="pill">Browser Replica / Low Impact</span></div></div><div class="monitor-wrap"><div class="bezel"><div class="tft" id="tft"><div class="tft-top"><span class="tft-count" id="scount">0/0</span><span class="tft-ident" id="sident">SEARCHING...</span></div><div class="tft-mid"><div class="tft-airline" id="sairline"></div><div><div class="tft-route" id="sroute">--- - ---</div><div class="tft-aircraft" id="saircraft"></div></div></div><div class="tft-status"><div id="sline1"></div><div id="sline2"></div></div><div class="bar"><span id="sbar"></span></div></div><div id="tftmap" style="display:none;width:100%;aspect-ratio:4/3;background:#000;border-radius:4px;overflow:hidden;position:relative"><img id="tftmaptile" style="width:100%;height:100%;display:block;object-fit:cover" alt="Map mirror"><svg id="tftmapol" preserveAspectRatio="none" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none"></svg></div></div><div class="monitor-foot"><a href="/api/screenshot" download style="color:var(--ink-dim);font-size:12px;text-decoration:none;border:1px solid var(--line);padding:4px 10px;border-radius:4px">&#8681; Screenshot (BMP)</a></div></div></section>
  <section class="panel"><div class="panel-head"><span class="panel-title">Flight Data Feed</span><span class="pill">Volatile / API Reads</span></div><div class="stream" id="events"><div class="empty">Waiting for a fetch cycle...</div></div></section>
@@ -91,13 +96,13 @@ footer h4{color:var(--text);font-size:11px;letter-spacing:.15em;text-transform:u
   <div class="field"><label>Fetch interval sec</label><input type="number" id="fetch_sec" min="10" max="3600"></div><div class="field"><label>Card cycle sec</label><input type="number" id="cycle_sec" min="1" max="60"></div><div class="field"><label>Map display sec</label><input type="number" id="map_sec" min="5" max="300"></div>
   <div class="field"><label>Map label colour <span class="info" data-tip="Colour used for enriched flight markers (dot, heading tick and callsign label) on BOTH the CYD map card and the WebUI map preview. Saved to NVS — applied to CYD on next boot.">&#9432;</span></label><input type="color" id="labelColor" value="#1e90ff" oninput="updateMapOverlay()" style="width:100%;height:38px;padding:2px;cursor:pointer"></div>
  </div>
- <div id="mapwrap" style="margin:14px 0 0;display:none;border:1px solid var(--line);border-radius:12px;overflow:hidden;max-width:50%"><div style="display:flex;justify-content:space-between;align-items:center;padding:7px 14px;background:var(--panel2)"><span style="font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase">Map Preview</span><div style="display:flex;align-items:center;gap:10px"><label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);cursor:pointer;user-select:none"><input type="checkbox" id="showFlights" checked onchange="updateMapOverlay()" style="width:auto;margin:0;cursor:pointer"> Flights</label><button onclick="refreshMapPreview()" style="background:transparent;border:1px solid var(--line);color:var(--muted);font-size:11px;padding:3px 10px;border-radius:6px;cursor:pointer">&#8635; Refresh</button></div></div><div style="position:relative;line-height:0"><img id="maptile" style="width:100%;display:block" alt="Map preview"><svg id="mapol" viewBox="0 0 320 240" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none"></svg></div></div>
+ <div id="mapwrap" style="margin:14px 0 0;display:none;border:1px solid var(--line);border-radius:12px;overflow:hidden;max-width:50%"><div style="display:flex;justify-content:space-between;align-items:center;padding:7px 14px;background:var(--panel2)"><span style="font-size:11px;color:var(--ink-dim);letter-spacing:.1em;text-transform:uppercase">Map Preview</span><div style="display:flex;align-items:center;gap:10px"><label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--ink-dim);cursor:pointer;user-select:none"><input type="checkbox" id="showFlights" checked onchange="updateMapOverlay()" style="width:auto;margin:0;cursor:pointer"> Flights</label><button onclick="refreshMapPreview()" style="background:transparent;border:1px solid var(--line);color:var(--ink-dim);font-size:11px;padding:3px 10px;border-radius:6px;cursor:pointer">&#8635; Refresh</button></div></div><div style="position:relative;line-height:0"><img id="maptile" style="width:100%;display:block" alt="Map preview"><svg id="mapol" viewBox="0 0 320 240" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none"></svg></div></div>
  <div class="credentials">
   <div class="field"><label>OpenSky Client ID <span id="oskyIdState"></span></label><input type="password" id="osky_id" placeholder="Leave blank to retain"><div class="cred-note"><input type="checkbox" id="clear_osky" style="width:auto"> Clear OpenSky credentials</div></div>
   <div class="field"><label>OpenSky Secret <span id="oskyState"></span></label><input type="password" id="osky_sec" placeholder="Leave blank to retain"></div>
   <div class="field"><label>AeroAPI Key <span id="aeroState"></span></label><input type="password" id="aero_key" placeholder="Leave blank to retain"><div class="cred-note"><input type="checkbox" id="clear_aero" style="width:auto"> Clear AeroAPI key</div></div>
  </div>
- <div class="actions"><span class="message" id="msg">Credential values are never returned to this page.</span><div style="display:flex;gap:10px"><button id="mapfetch" style="background:var(--panel2);border:1px solid var(--line);color:var(--muted);font-weight:500;border-radius:9px;padding:11px 18px;cursor:pointer" onmouseover="this.style.borderColor='var(--amber)';this.style.color='var(--amber)'" onmouseout="this.style.borderColor='var(--line)';this.style.color='var(--muted)'" onclick="fetchMap(this)">Fetch Map</button><button id="save" onclick="saveConfig()">Save &amp; Reboot</button></div></div>
+ <div class="actions"><span class="message" id="msg">Credential values are never returned to this page.</span><div style="display:flex;gap:10px"><button id="mapfetch" style="background:var(--panel2);border:1px solid var(--line);color:var(--ink-dim);font-weight:500;border-radius:9px;padding:11px 18px;cursor:pointer" onmouseover="this.style.borderColor='var(--amber)';this.style.color='var(--amber)'" onmouseout="this.style.borderColor='var(--line)';this.style.color='var(--ink-dim)'" onclick="fetchMap(this)">Fetch Map</button><button id="save" onclick="saveConfig()">Save &amp; Reboot</button></div></div>
 </div></section>
 <footer>
 <div><h4>Contact</h4><div>Anthony Clarke</div><div><a href="mailto:anthonyjclarke [at] gmail.com">anthonyjclarke [@] gmail.com</a></div><div style="margin-top:8px"><a href="https://github.com/anthonyjclarke">GitHub</a> &middot; <a href="https://bsky.app/profile/anthonyjclarke.bsky.social">BlueSky</a> &middot; <a href="https://www.threads.net/@anthonyjclarke">Threads</a> &middot; <a href="https://www.linkedin.com/in/anthonyjclarke">LinkedIn</a></div></div>
@@ -152,7 +157,7 @@ function renderFlights(list){
  if(!list.length){$('flights').innerHTML='<div class="empty">No current flights.</div>';return;}
  $('flights').innerHTML=list.map(f=>{
   const tag=f.enriched?'<span class="tag">ENRICHED</span>':'<span class="tag tag-adsb">ADS-B</span>';
-  const r=f.enriched?`<div class="route">${esc(route(f))}</div><div class="city">${esc(val(f.origin_city,''))}${f.destination_city?' → '+esc(f.destination_city):''}</div>`:`<div class="route" style="font-size:15px;color:var(--muted)">${f.on_ground?'On ground':'Airborne'}</div><div class="city"></div>`;
+  const r=f.enriched?`<div class="route">${esc(route(f))}</div><div class="city">${esc(val(f.origin_city,''))}${f.destination_city?' → '+esc(f.destination_city):''}</div>`:`<div class="route" style="font-size:15px;color:var(--ink-dim)">${f.on_ground?'On ground':'Airborne'}</div><div class="city"></div>`;
   return `<article class="flight"><div class="flight-id"><h3>${esc(val(f.ident))}</h3>${tag}</div>${r}<div class="facts">${fact('Airline',f.airline||f.operator_icao)}${fact('Aircraft',f.aircraft_display||f.aircraft_code)}${fact('Distance',fixed(f.distance_km)+' km')}${fact('Bearing',fixed(f.bearing_deg,0)+' deg')}${fact('Altitude',f.baro_altitude_m!=null?Math.round(f.baro_altitude_m*3.28084)+' ft':null)}${fact('Geo alt',f.geo_altitude_m!=null?Math.round(f.geo_altitude_m*3.28084)+' ft':null)}${fact('Speed',f.velocity_mps!=null?Math.round(f.velocity_mps*3.6)+' km/h':null)}${fact('V/rate',f.vertical_rate_mps!=null?fixed(f.vertical_rate_mps)+' m/s':null)}${fact('Heading',f.heading_deg!=null?fixed(f.heading_deg,0)+' deg':null)}${fact('Departure',when(f.actual_out_epoch))}${fact('Arrival',when(f.estimated_in_epoch))}${fact('ICAO24',f.icao24)}${fact('Squawk',f.squawk)}${fact('Country',f.origin_country)}</div></article>`;
  }).join('');
 }
@@ -180,7 +185,7 @@ async function poll(){
  if(d.api_error){al.textContent='⚠ '+d.api_error;al.style.display='block';}
  else if(d.opensky_credits!==undefined&&d.opensky_credits<200){al.textContent='⚠ OpenSky credits critically low — '+d.opensky_credits+' remaining today. Raise fetch interval or wait for midnight reset.';al.style.display='block';}
  else{al.style.display='none';}
- if(d.opensky_credits!==undefined){const c=d.opensky_credits,el=$('credits');el.textContent=c+' API credits';el.style.color=c<200?'var(--red)':c<500?'var(--amber)':'var(--muted)';el.style.display='';}
+ if(d.opensky_credits!==undefined){const c=d.opensky_credits,el=$('credits');el.textContent=c+' API credits';el.style.color=c<200?'var(--red)':c<500?'var(--amber)':'var(--ink-dim)';el.style.display='';}
  g_mapFlights=d.flights||[];if($('mapwrap').style.display!=='none')updateMapOverlay();if($('tftmap').style.display!=='none'){var mt=$('tftmaptile');if(mt.complete&&mt.naturalWidth)updateMapOverlay(mt,$('tftmapol'));}
  }catch(e){clearTimeout(t);updateBusyBanner(true,e.name==='AbortError'?'Awaiting response…':'');$('connection').textContent='Device busy';}
 }
@@ -199,7 +204,7 @@ function updateMapOverlay(imgEl,svgEl){
  var img=imgEl||$('maptile'),svg=svgEl||$('mapol');
  var w=img.naturalWidth,h=img.naturalHeight;
  if(!w||!h)return;
- var cx=w/2,cy=h/2,a='#f6a23a';
+ var cx=w/2,cy=h/2,a='#ff9b2e';
  var rPx=Math.min(w,Math.max(h-20,0))/2.5;
  svg.setAttribute('viewBox','0 0 '+w+' '+h);
  var html=

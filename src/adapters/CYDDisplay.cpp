@@ -119,6 +119,7 @@ void CYDDisplay::clear()
     _tft->fillScreen(UserConfiguration::COLOR_BACKGROUND);
   resetRenderState();
   _lastStatusMessage = "";
+  _splashOnScreen = false;
 }
 
 void CYDDisplay::displayFlights(const std::vector<FlightInfo> &flights)
@@ -183,6 +184,7 @@ void CYDDisplay::displayMessage(const String &message)
   _tft->endWrite();
   resetRenderState();
   _lastStatusMessage = message;
+  _splashOnScreen = false;
 }
 
 void CYDDisplay::showLoading()
@@ -200,6 +202,7 @@ void CYDDisplay::showLoading()
   _tft->endWrite();
   resetRenderState();
   _lastStatusMessage = kLoadingText;
+  _splashOnScreen = false;
 }
 
 String CYDDisplay::renderKey(const FlightInfo &f) const
@@ -255,6 +258,7 @@ void CYDDisplay::drawMapCard(const std::vector<FlightInfo> &flights)
   _tft->startWrite();
   _tft->fillScreen(COLOR_BACKGROUND);
   _tft->endWrite();
+  _splashOnScreen = false;
 
   if (hasMap)
   {
@@ -623,6 +627,7 @@ void CYDDisplay::drawFlightCard(const FlightInfo &f, size_t idx, size_t total)
   // ── Phase 1: all SPI drawing except the JPEG logo ──────────────────────────
   _tft->startWrite();
   _tft->fillScreen(UserConfiguration::COLOR_BACKGROUND);
+  _splashOnScreen = false;
 
   // Counter — small, top-left
   _tft->setFreeFont(F_SUB);
@@ -708,6 +713,38 @@ void CYDDisplay::drawFlightCard(const FlightInfo &f, size_t idx, size_t total)
 void CYDDisplay::readRectRGB(int16_t x, int16_t y, int16_t w, int16_t h, uint8_t *buf)
 {
   if (_tft) _tft->readRectRGB(x, y, w, h, buf);
+}
+
+// Draws /splash.jpg from LittleFS at the origin. The per-environment splash
+// (320×240 or 480×320) is staged into the LittleFS image at build time by
+// scripts/copy_splash.py.
+bool CYDDisplay::showSplash()
+{
+  if (!_tft) return false;
+  if (_splashOnScreen) return true;  // idempotent — safe to call every loop tick in empty state
+  if (!LittleFS.exists("/splash.jpg"))
+  {
+    DBG_WARN("showSplash: /splash.jpg not present in LittleFS");
+    return false;
+  }
+  _tft->fillScreen(UserConfiguration::COLOR_BACKGROUND);
+  JRESULT r = TJpgDec.drawFsJpg(0, 0, "/splash.jpg", LittleFS);
+  if (r != JDR_OK)
+  {
+    DBG_ERROR("showSplash: TJpgDec.drawFsJpg failed (code=%d)", (int)r);
+    return false;
+  }
+  // Drawing the JPEG wipes the bottom-bar pixels too, so reset the phase
+  // cache so the next showFetchStatus() call repaints the bar instead of
+  // assuming the prior phase string is still on screen.
+  _lastFetchPhase = "";
+  // Force the next displayMessage / displayFlights to redraw rather than
+  // assume the screen still holds the prior status text.
+  _lastStatusMessage = "";
+  resetRenderState();
+  _splashOnScreen = true;
+  DBG_INFO("showSplash: /splash.jpg drawn");
+  return true;
 }
 
 // ── Fetch status bar ─────────────────────────────────────────────────────────

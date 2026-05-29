@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 80" width="360" height="80" role="img" aria-label="The Flight Wall — CYD Edition">
+  
+
+  
+  <g transform="translate(18 9)">
+    
+    <circle cx="31" cy="31" r="27" fill="none" stroke="#ff9b2e" stroke-opacity="0.45"></circle>
+    <circle cx="31" cy="31" r="16" fill="none" stroke="#ff9b2e" stroke-opacity="0.7"></circle>
+    
+    <line x1="4" y1="31" x2="58" y2="31" stroke="#ff9b2e" stroke-opacity="0.18"></line>
+    <line x1="31" y1="4" x2="31" y2="58" stroke="#ff9b2e" stroke-opacity="0.18"></line>
+    
+    <path d="M 31 31 L 31 4 A 27 27 0 0 1 54.38 17.5 Z" fill="#ff9b2e" opacity="0.55"></path>
+    
+    <circle cx="31" cy="31" r="2.5" fill="#ff9b2e"></circle>
+  </g>
+
+  
+  <text class="wordmark" x="96" y="37">The Flight Wall</text>
+  <text class="subline" x="96" y="58">CYD EDITION</text>
+</svg>

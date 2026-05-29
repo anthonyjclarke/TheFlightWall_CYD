@@ -1,3 +1,23 @@
+<div align="center">
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/branding/logo_transparent_720x160-2x.png">
+  <img src="assets/branding/logo_dark_360x80.png" alt="The Flight Wall — CYD Edition" width="420">
+</picture>
+
+**ESP32 flight tracker for the "Cheap Yellow Display"** &middot; live ADS-B, AeroAPI route enrichment, embedded dashboard
+
+[![Release](https://img.shields.io/github/v/release/anthonyjclarke/TheFlightWall_CYD?color=ff9b2e&style=flat-square&label=release)](https://github.com/anthonyjclarke/TheFlightWall_CYD/releases)
+[![License](https://img.shields.io/github/license/anthonyjclarke/TheFlightWall_CYD?color=8a8f99&style=flat-square)](LICENSE)
+[![Last commit](https://img.shields.io/github/last-commit/anthonyjclarke/TheFlightWall_CYD?color=5fb7d6&style=flat-square)](https://github.com/anthonyjclarke/TheFlightWall_CYD/commits)
+[![Platform](https://img.shields.io/badge/platform-ESP32-3ddc7a?style=flat-square&logo=espressif&logoColor=white)](#appendix-a--hardware-background-the-cheap-yellow-display)
+[![Build with](https://img.shields.io/badge/build-PlatformIO-ff7f00?style=flat-square&logo=platformio&logoColor=white)](https://platformio.org/)
+[![Framework](https://img.shields.io/badge/framework-Arduino-00979d?style=flat-square&logo=arduino&logoColor=white)](https://www.arduino.cc/)
+
+</div>
+
+---
+
 # TheFlightWall Firmware — CYD Edition
 
 PlatformIO firmware for the CYD (TFT) build target of [TheFlightWall OSS](https://github.com/AxisNimble/TheFlightWall_OSS) — the open-source flight wall project by [AxisNimble](https://github.com/AxisNimble). This repository implements the ESP32 "Cheap Yellow Display" hardware variant of that project using either 320×240 or 480×320 models.
@@ -14,7 +34,7 @@ PlatformIO firmware for the CYD (TFT) build target of [TheFlightWall OSS](https:
 - **Runtime configuration** — location, radius, fetch interval, display timing and API credentials persisted to NVS via the dashboard; no reflash needed
 - **WiFiManager provisioning** — captive-portal AP on first boot; credentials stored in NVS
 
-Current release: **v1.2.0** (29 May 2026) · dev branch building toward **v1.3.0**
+Current release: **v1.3.0** (30 May 2026) · canonical version: `FW_VERSION_STR` in `src/config/Version.h`
 
 > ![Hero shot of CYD running FlightWall](images/hero.png)
 > 
@@ -67,7 +87,7 @@ Current release: **v1.2.0** (29 May 2026) · dev branch building toward **v1.3.0
 | `src/adapters/CYDDisplay` | TFT_eSPI flight card — callsign, route, status lines, progress bar, JPEG logo; map card slot |
 | `src/adapters/MapProvider` | Google Maps Static API fetch, LittleFS JPEG cache (24 h TTL), Web Mercator lat/lon → pixel projection |
 | `src/adapters/WebUIServer` | HTTP server (port 80) — dashboard, JSON API, logo serving, runtime configuration |
-| `src/config/` | `UserConfiguration`, `APIConfiguration`, `TimingConfiguration`, `HardwareConfiguration`, `RuntimeConfig` |
+| `src/config/` | `UserConfiguration`, `APIConfiguration`, `TimingConfiguration`, `HardwareConfiguration`, `RuntimeConfig`; `Version.h` — single source of truth for `FW_VERSION_STR` |
 | `src/interfaces/` | `BaseDisplay`, `BaseFlightFetcher`, `BaseStateVectorFetcher` |
 | `src/models/` | `FlightInfo`, `StateVector`, `AirportInfo` |
 | `src/utils/GeoUtils.h` | Haversine distance and bearing calculations |

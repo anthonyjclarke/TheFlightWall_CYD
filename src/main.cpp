@@ -7,6 +7,7 @@
 #include "RuntimeConfig.h"
 #include "TimingConfiguration.h"
 #include "HardwareConfiguration.h"
+#include "Version.h"
 #include "OpenSkyFetcher.h"
 #include "AeroAPIFetcher.h"
 #include "FlightDataFetcher.h"
@@ -45,7 +46,11 @@ static void initFilesystem()
 static void initDisplay()
 {
   g_display.initialize();
-  g_display.displayMessage("FlightWall");
+  // Splash JPEG from LittleFS replaces the legacy "FlightWall" status text.
+  // If the splash is missing (LittleFS image not flashed) fall back to the
+  // text banner so the device never boots to a blank screen.
+  if (!g_display.showSplash())
+    g_display.displayMessage("FlightWall");
 }
 
 static void initWiFi()
@@ -53,17 +58,18 @@ static void initWiFi()
   WiFiManager wm;
   wm.setConfigPortalTimeout(180);
   wm.setSaveConnectTimeout(20);
-  g_display.displayMessage("Connecting WiFi...");
+  g_display.showFetchStatus("Connecting WiFi...");
   if (wm.autoConnect(HardwareConfiguration::WIFI_AP_NAME))
   {
     DBG_INFO("WiFi connected: %s", WiFi.localIP().toString().c_str());
-    g_display.displayMessage("WiFi OK: " + WiFi.localIP().toString());
+    const String ok = "WiFi OK: " + WiFi.localIP().toString();
+    g_display.showFetchStatus(ok.c_str());
     delay(1500);
   }
   else
   {
     DBG_WARN("WiFi portal timed out — running without network");
-    g_display.displayMessage("No WiFi");
+    g_display.showFetchStatus("No WiFi");
     delay(1500);
   }
 }
@@ -89,9 +95,13 @@ void setup()
 {
   Serial.begin(115200);
   delay(200); // settle before initialising peripherals
+  DBG_INFO("FlightWall CYD firmware v%s booting", FW_VERSION_STR);
   RuntimeConfig::load();
   initFilesystem();
   initDisplay();
+  // Hold the splash on screen for ≥1.5 s before WiFi/NTP status messages
+  // overwrite it. Per branding spec; OK to delay in setup().
+  delay(1500);
   initWiFi();
   initTime();
   g_webUI.begin(&g_flights, &g_display);
@@ -113,7 +123,9 @@ void setup()
   DBG_INFO("WebUI ready — first fetch in %u s (http://%s/)",
            TimingConfiguration::STARTUP_WEBUI_GRACE_MS / 1000,
            WiFi.localIP().toString().c_str());
-  g_display.showLoading();
+  // Splash + bottom-bar status holds until the first flight card is drawn.
+  // No fullscreen showLoading() here — that would clobber the splash.
+  g_display.showFetchStatus("Searching...");
   DBG_INFO("Free heap: %u bytes", ESP.getFreeHeap());
 }
 
@@ -141,7 +153,10 @@ void loop()
   if (shouldFetch && WiFi.status() != WL_CONNECTED)
   {
     DBG_WARN("WiFi not connected — skipping fetch");
-    g_display.displayMessage("No WiFi");
+    // If no flight data is showing, paint the splash; otherwise leave last-good
+    // flight cards visible. Either way the message lives in the bottom bar.
+    if (g_flights.empty()) g_display.showSplash();
+    g_display.showFetchStatus("No WiFi");
     g_lastFetchMs = now;
     return;
   }
@@ -154,7 +169,9 @@ void loop()
     g_webUI.setBusy(true, "Starting fetch");
     const size_t enriched = g_fetcher->fetchFlights(states, flights);
     g_webUI.setBusy(false, "");
-    g_display.showFetchStatus("");
+    // Don't clear the TFT bar here — the loop tail will repaint with the
+    // next steady-state phase ("Searching...", empty msg, or first flight
+    // card) and avoid a black flash at the bottom of the screen.
 
     DBG_INFO("State vectors: %u  enriched: %u", (unsigned)states.size(), (unsigned)enriched);
 
@@ -206,15 +223,24 @@ void loop()
     g_webUI.setBusy(true, "Map cache");
     MapProvider::ensureMapCached(g_display.width(), g_display.height());
     g_webUI.setBusy(false, "");
-    g_display.showFetchStatus("");
+    // Bar holds "Map cache" until loop tail repaints — see note above.
     g_lastFetchMs = millis();
   }
 
   // ── Normal display routing ─────────────────────────────────────────────────
+  // Two states: flight cards (when we have data) OR splash + bottom-bar status
+  // (when we don't). The bar carries whatever the most relevant message is —
+  // "No active flights within Nkm", "Searching...", "No WiFi", etc.
+  // Both showSplash() and showFetchStatus() are idempotent on identical state
+  // so calling them every loop tick is essentially free.
   if (!g_flights.empty())
+  {
     g_display.displayFlights(g_flights);
-  else if (g_emptyMessage.length())
-    g_display.displayMessage(g_emptyMessage);
+  }
   else
-    g_display.showLoading();
+  {
+    g_display.showSplash();
+    g_display.showFetchStatus(g_emptyMessage.length() ? g_emptyMessage.c_str()
+                                                      : "Searching...");
+  }
 }

@@ -20,6 +20,11 @@ public:
     void showLoading()                                   override;
     void showFetchStatus(const char *phase);
 
+    // Draws /splash.jpg from LittleFS at (0,0). Returns false if the file
+    // is missing or decode fails — caller may then fall back to a text
+    // banner. Re-uses the TJpgDec setup done in initialize().
+    bool showSplash();
+
     size_t currentFlightIndex() const { return _currentFlightIndex; }
     uint16_t width() const { return _w; }
     uint16_t height() const { return _h; }
@@ -47,6 +52,7 @@ private:
     String        _lastRenderedKey;
     String        _lastStatusMessage; // tracks displayMessage / showLoading text to avoid flicker
     String        _lastFetchPhase;   // tracks fetch status bar to avoid redundant redraws
+    bool          _splashOnScreen = false; // splash idempotence guard — set by showSplash(), cleared by every full-screen draw
 
     void drawFlightCard(const FlightInfo &f, size_t idx, size_t total);
     void drawProgressBar(const FlightInfo &f, time_t now);

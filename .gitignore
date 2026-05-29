@@ -6,3 +6,9 @@ misc
 firmware/.pio
 firmware/include/secrets.h
 include/secrets.h
+
+# Asset bundle reference notes — don't ship; .DS_Store already covered above
+assets/branding/README.md
+
+# Auto-populated by scripts/copy_splash.py at build time
+data/splash.jpg
