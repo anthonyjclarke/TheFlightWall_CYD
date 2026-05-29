@@ -1,6 +1,6 @@
 # FlightWall — CYD Edition
 
-ESP32 flight tracker displaying live nearby aircraft on a CYD TFT and embedded web dashboard. OpenSky ADS-B state vectors (OAuth2) → AeroAPI enrichment → FlightWall CDN name lookup → cycling flight card. Current version: 1.2.0.
+ESP32 flight tracker displaying live nearby aircraft on a CYD TFT and embedded web dashboard. OpenSky ADS-B state vectors (OAuth2) → AeroAPI enrichment → FlightWall CDN name lookup → cycling flight card. Current version: 1.3.0. **Canonical version macro: `FW_VERSION_STR` in [`src/config/Version.h`](src/config/Version.h)** — bumping it there propagates to the WebUI title/brand badge and the boot serial banner. Markdown docs (this file, README.md, CHANGELOG.md) stay manually-maintained.
 
 ---
 
@@ -81,3 +81,12 @@ NVS keys: `ctr_lat`, `ctr_lon`, `radius_km`, `fetch_sec`, `cycle_sec`, `map_sec`
 - `build_src_filter` paths are now relative to `src/` without `../` prefix (all `.cpp` files are inside `src/`). Add new `.cpp` files to the explicit list; do not use wildcards.
 - Arduino ESP32 3.x does not auto-expose framework library headers — each one needs an explicit `-I $PROJECT_PACKAGES_DIR/framework-arduinoespressif32/libraries/{LibName}/src` entry in `[cyd_common]` build_flags. Current entries: `FS/src`, `LittleFS/src`, `Network/src`, `HTTPClient/src`, `NetworkClientSecure/src`, `WebServer/src`.
 - `g_states` in `main.cpp` is retained for fetch-cycle telemetry supplied to `WebUIServer::recordFetch()`; the TFT renders from `g_flights`.
+
+## Release process
+
+When the user asks to push a release that has been merged to `main`:
+
+1. Bump `FW_VERSION_STR` in `src/config/Version.h` to the clean version (e.g. `"1.3.0"`), update `README.md` and `CHANGELOG.md`, commit.
+2. `git tag v1.3.0 && git push origin main --tags`
+
+Pushing the tag triggers `.github/workflows/release.yml`, which builds both firmware targets and creates a GitHub Release with the CHANGELOG notes and both `.bin` files attached. The shields.io release badge on README.md updates automatically from the GitHub Releases API. No manual `gh release create` step needed.

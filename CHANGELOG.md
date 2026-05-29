@@ -4,6 +4,32 @@ Outstanding features and code optimisations are tracked separately in [TODO.md](
 
 ---
 
+## [Unreleased]
+
+---
+
+## [1.3.0] 30-05-2026
+
+### Added
+- **Splash screen at boot** — `CYDDisplay::showSplash()` decodes `/splash.jpg` from LittleFS via TJpgDec at startup. The correct variant (`splash_320x240.jpg` / `splash_480x320.jpg`) is copied into `data/splash.jpg` by `scripts/copy_splash.py`, a PlatformIO pre-build script that selects the file based on `PIOENV`. Falls back to `displayMessage("FlightWall")` text banner if the image is missing. `showSplash()` is idempotent: sets `_splashOnScreen = true` on the first decode; subsequent calls while the state is unchanged are no-ops. Any fullscreen draw (flight card, map card, `displayMessage`, `showLoading`) resets the flag so a return to no-data state always re-decodes.
+- **Splash-as-background in all no-data states** — the splash image stays visible throughout startup and all empty states. WiFi connecting, NTP sync, "No active flights within Nkm" and "Searching…" all display their messages in the bottom status bar, leaving the splash untouched. `g_hasEverShownFlights` flag removed; loop tail simplified to two branches: flights → flight cards; otherwise → `showSplash()` + `showFetchStatus()`.
+- **`CYDDisplay::showFetchStatus()`** — 24 px amber-on-navy status bar pinned to the very bottom of the TFT. Idempotent on identical phase text; used for all startup messages (`"Connecting WiFi…"`, `"WiFi OK: x.x.x.x"`, `"Searching…"`) and mid-fetch phase names (`"OpenSky"`, `"AeroAPI 3/10"`, `"Map cache"` etc.). Replaces fullscreen `showLoading()` / `displayMessage()` in all status paths so the splash always remains behind the message.
+- **`src/config/Version.h`** — single source of truth for `FW_VERSION_STR`. The WebUI HTML title and brand badge embed the macro via adjacent raw-string-literal concatenation (`R"rawlit(... v)rawlit" FW_VERSION_STR R"rawlit(</title>)rawlit"`) — zero runtime cost, no string copy. The boot serial banner logs the same value. Markdown docs (`README.md`, `CLAUDE.md`, `CHANGELOG.md`) remain manually maintained; the header comment lists all locations that must be touched on a version bump.
+- **GitHub Actions release workflow** (`.github/workflows/release.yml`) — fires automatically when a clean `vX.Y.Z` tag is pushed to main (pre-release suffixes `-dev` / `-rc` are excluded by the tag glob). Builds both `cyd_320x240` and `cyd_480x320` firmware targets via PlatformIO on Ubuntu; extracts the matching `## [X.Y.Z]` block from `CHANGELOG.md` as release notes; creates a GitHub Release with both `.bin` files attached. The shields.io release badge on `README.md` updates automatically from the GitHub Releases API. No manual `gh release create` step required.
+- **WebUI brand refresh** — Space Grotesk (headings) and JetBrains Mono (data/code) loaded from Google Fonts; full CSS brand-token sweep replacing ad-hoc hex values with `--amber:#ff9b2e`, `--ink:#f3f4f6`, `--ink-dim:#8a8f99`, `--cyan:#5fb7d6`, `--green:#3ddc7a`; inline SVG logo in the dashboard header; base64 favicon data URI in `<head>` (no separate HTTP request). Branding assets live in `assets/branding/` and are gitignored from `data/splash.jpg` (generated per-build).
+- **`README.md` professional header** — `<picture>` element with theme-aware logo variants (dark/light system preference); shields.io badge row: release, license, last-commit, platform (ESP32), PlatformIO, Arduino framework.
+
+### Changed
+- Boot sequence: all status messages during WiFi connect and NTP sync now call `showFetchStatus()` instead of `displayMessage()` / `showLoading()`, so the splash screen stays on screen throughout the entire startup flow.
+- `initWiFi()` displays `"Connecting WiFi…"`, `"WiFi OK: x.x.x.x"` (or `"No WiFi"`) in the bottom bar; `setup()` tail leaves `"Searching…"` in the bar. No fullscreen status clears the splash.
+- `UserConfiguration::COLOR_MAP_LABEL` default corrected to dark blue (`#00008B`, RGB565 `0x0011`).
+
+### Documentation
+- `CLAUDE.md` updated: `Version.h` as canonical version source; slot-tracking parity architectural note (WebUI `onGetLive()` must mirror `displayFlights()` `totalSlots` exactly); countdown timer source-of-truth; release process sequence.
+- `README.md` current release line updated; `src/config/` entry in Key Components table now lists `Version.h`.
+
+---
+
 ## [1.2.0] 29-05-2026
 
 ### Added
