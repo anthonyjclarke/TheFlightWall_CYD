@@ -19,11 +19,6 @@ public:
                            double radiusKm,
                            std::vector<StateVector> &outStateVectors) override;
 
-    // Fetch a single state vector by ATC callsign, anywhere in the world.
-    // distance_km and bearing_deg are computed from the configured centre.
-    // Returns false if not found, rate-limited, or auth fails.
-    bool fetchByCallsign(const String &callsign, StateVector &out);
-
     bool ensureAuthenticated(bool forceRefresh = false);
 
     // Drop the cached OAuth token so the next fetch re-authenticates. Call after

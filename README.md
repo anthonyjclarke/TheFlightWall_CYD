@@ -37,7 +37,7 @@ PlatformIO firmware for the CYD (TFT) build target of [TheFlightWall OSS](https:
 - **Runtime configuration** — location, radius, fetch interval, display timing, brightness, label colour and API credentials persisted to NVS via the dashboard; **all settings apply live with no reboot** (a separate *Reboot Device* button is retained for WiFi reset / recovery); no reflash needed
 - **WiFiManager provisioning** — captive-portal AP on first boot; credentials stored in NVS
 
-Current dev version: **v1.4.0-dev** · last release: **v1.3.0** (30 May 2026) · canonical version: `FW_VERSION_STR` in `src/config/Version.h`
+Current release: **v1.4.0** (01 June 2026) · canonical version: `FW_VERSION_STR` in `src/config/Version.h`
 
 > ![Hero shot of CYD running FlightWall](images/hero.png)
 > 
@@ -187,6 +187,16 @@ Once WiFi is connected, open `http://<device-ip>/` in a browser. The dashboard i
 | Flight Data Feed | Scrolling feed of fetch-cycle events and live aircraft observations. Stores up to 50 entries in RAM only; clears on reboot. |
 | Current Flights | Horizontally scrollable card per `g_flights` entry (no five-flight cap since v0.14.0). Callsign resolution matches the CYD (`ident_iata` → `ident` → `ident_icao`), so for example Virgin Australia's `VA804` shows as `VA804` on both the TFT and the dashboard. |
 | Device Configuration | Runtime location, timing, brightness, **map label colour** (with hover ⓘ tooltip), **pinned flight** and API credential updates stored in NVS. All settings apply live — no reboot. A "Fetch Map" button re-fetches the map tile for a candidate centre/radius without committing to NVS; a "Reboot Device" button is retained for WiFi reset / recovery. |
+
+### Pinned flight
+
+Enter a flight number (IATA e.g. `QF1` or ICAO e.g. `QFA001`) in the Device Configuration **Pinned flight** field and press **Update** (or Enter). That flight is tracked every fetch cycle regardless of the radar radius and pinned as the first card in the cycle. On the WebUI it carries an amber **`PINNED`** badge alongside its `ENRICHED` / `ADS-B` tag, and a **📍 Show Location** link to its live position on Google Maps; its coordinates and distance also appear in the card's Latitude / Longitude / Distance facts. On the TFT the pinned card gets an amber header strip, and the map card shows a bearing-arrow edge indicator when the flight is outside the radar radius. Out-of-radius position is sourced from AeroAPI's `/flights/search` endpoint (airborne flights only); a not-yet-airborne pinned flight shows **📍 Locating…** until it is in the air.
+
+> ![Dashboard entry of Pinned Flight](images/webui-enter-pinned.png)
+> 
+> ![Pinned flight card on the dashboard](images/webui-pinned.png)
+>
+> *Pinned flight example — `EK412` (Dubai → Sydney) at slot 1 with the amber `PINNED` badge beside `ENRICHED`, and a 📍 Show Location link resolving to its live coordinates (−34.548, 149.817 · 148.6 km from the configured centre).*
 
 Dashboard endpoints:
 

@@ -281,5 +281,83 @@ bool AeroAPIFetcher::fetchFlightInfo(const String &flightIdent, FlightInfo &outI
                  (long)(outInfo.estimated_in_epoch - nowSel) / 60);
     }
 
+    // NOTE: /flights/{ident} (BaseFlight schema) carries no position data. Live
+    // lat/lon comes from fetchLivePosition() via /flights/search (InFlightStatus).
+    return true;
+}
+
+bool AeroAPIFetcher::fetchLivePosition(const String &ident, FlightInfo &outInfo)
+{
+    const String apiKey = RuntimeConfig::aeroApiKey();
+    if (apiKey.length() == 0)
+    {
+        DBG_WARN("AeroAPI: no API key for position search");
+        return false;
+    }
+
+    WiFiClientSecure client;
+    if (APIConfiguration::AEROAPI_INSECURE_TLS)
+        client.setInsecure();
+
+    HTTPClient http;
+    // /flights/search returns InFlightStatus (airborne flights only), which is the
+    // only endpoint that carries last_position. Query operator: "-idents <IDENT>";
+    // the space is URL-encoded and idents are plain alphanumerics.
+    String url = String(APIConfiguration::AEROAPI_BASE_URL) +
+                 "/flights/search?query=-idents%20" + ident;
+    http.begin(client, url);
+    http.setTimeout(15000);
+    http.addHeader("x-apikey", apiKey);
+    http.addHeader("Accept", "application/json");
+
+    int code = http.GET();
+    if (code != 200)
+    {
+        DBG_WARN("AeroAPI: position search HTTP %d (%s) for %s",
+                 code, HTTPClient::errorToString(code).c_str(), ident.c_str());
+        http.end();
+        return false;
+    }
+    String body = http.getString();
+    http.end();
+    DBG_VERBOSE("AeroAPI search body[%.80s]", body.c_str());
+
+    StaticJsonDocument<256> filter;
+    filter["flights"][0]["last_position"]["latitude"]    = true;
+    filter["flights"][0]["last_position"]["longitude"]   = true;
+    filter["flights"][0]["last_position"]["altitude"]    = true;
+    filter["flights"][0]["last_position"]["groundspeed"] = true;
+    filter["flights"][0]["last_position"]["heading"]     = true;
+
+    DynamicJsonDocument doc(4096);
+    DeserializationError err = deserializeJson(doc, body, DeserializationOption::Filter(filter));
+    if (err)
+    {
+        DBG_ERROR("AeroAPI: position search parse error: %s", err.c_str());
+        return false;
+    }
+
+    JsonArray flights = doc["flights"].as<JsonArray>();
+    if (flights.isNull() || flights.size() == 0)
+    {
+        DBG_INFO("AeroAPI: %s not airborne (no /search match)", ident.c_str());
+        return false;
+    }
+    JsonObject p = flights[0]["last_position"].as<JsonObject>();
+    if (p.isNull() || p["latitude"].isNull() || p["longitude"].isNull())
+    {
+        DBG_INFO("AeroAPI: %s /search match but no last_position", ident.c_str());
+        return false;
+    }
+
+    outInfo.lat = p["latitude"].as<double>();
+    outInfo.lon = p["longitude"].as<double>();
+    if (!p["altitude"].isNull())
+        outInfo.baro_altitude_m = p["altitude"].as<double>() * 100.0 / 3.28084; // 100s ft → m
+    if (!p["groundspeed"].isNull())
+        outInfo.velocity_mps = p["groundspeed"].as<double>() * 0.514444; // kt → m/s
+    if (!p["heading"].isNull())
+        outInfo.heading_deg = p["heading"].as<double>();
+    DBG_INFO("AeroAPI: %s live position %.4f,%.4f", ident.c_str(), outInfo.lat, outInfo.lon);
     return true;
 }

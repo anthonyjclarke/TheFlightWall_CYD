@@ -13,6 +13,7 @@
 #include "AeroAPIFetcher.h"
 #include "FlightDataFetcher.h"
 #include "FlightWallFetcher.h"
+#include "GeoUtils.h"
 #include "CYDDisplay.h"
 #include "MapProvider.h"
 #include "WebUIServer.h"
@@ -199,31 +200,35 @@ static void promoteOrFetchPinned(std::vector<FlightInfo> &flights)
     return;
   }
 
-  // ── Step 3: live state via callsign query (flight anywhere in the world) ──
-  StateVector sv;
-  if (g_openSky.fetchByCallsign(info.ident, sv))
+  // ── Step 3: live position via AeroAPI /flights/search ─────────────────────
+  // /flights/{ident} (used above for route/timing) carries no position; the
+  // search endpoint returns last_position for airborne flights. OpenSky cannot be
+  // queried by callsign (/states/all has no callsign filter), so this is the
+  // position source for an out-of-radius pinned flight. Returns false (leaving
+  // lat/lon NaN → "Locating…") when the flight is not yet airborne.
+  //
+  // AeroAPI /flights/search indexes by ATC (ICAO) callsign. If the user entered
+  // an IATA ident (e.g. "GA714"), info.ident may be returned as IATA while the
+  // search only matches ICAO ("GIA714"). Try all three ident forms in sequence.
+  bool posOk = g_aeroApi.fetchLivePosition(info.ident, info);
+  if (!posOk && info.ident_icao.length() && info.ident_icao != info.ident)
+    posOk = g_aeroApi.fetchLivePosition(info.ident_icao, info);
+  if (!posOk && info.ident_iata.length() &&
+      info.ident_iata != info.ident && info.ident_iata != info.ident_icao)
+    posOk = g_aeroApi.fetchLivePosition(info.ident_iata, info);
+
+  if (posOk)
   {
-    info.icao24            = sv.icao24;
-    info.origin_country    = sv.origin_country;
-    info.time_position     = sv.time_position;
-    info.lon               = sv.lon;
-    info.lat               = sv.lat;
-    info.distance_km       = sv.distance_km;
-    info.bearing_deg       = sv.bearing_deg;
-    info.baro_altitude_m   = sv.baro_altitude;
-    info.geo_altitude_m    = sv.geo_altitude;
-    info.velocity_mps      = sv.velocity;
-    info.heading_deg       = sv.heading;
-    info.vertical_rate_mps = sv.vertical_rate;
-    info.last_contact      = sv.last_contact;
-    info.squawk            = sv.squawk;
-    info.position_source   = sv.position_source;
-    info.on_ground         = sv.on_ground;
-    DBG_INFO("Pinned: %s live state acquired (%.0f km)", info.ident.c_str(), info.distance_km);
+    info.distance_km = haversineKm(RuntimeConfig::centerLat(), RuntimeConfig::centerLon(),
+                                   info.lat, info.lon);
+    info.bearing_deg = computeBearingDeg(RuntimeConfig::centerLat(), RuntimeConfig::centerLon(),
+                                         info.lat, info.lon);
+    DBG_INFO("Pinned: %s position from AeroAPI (%.0f km)", info.ident.c_str(), info.distance_km);
   }
   else
   {
-    DBG_INFO("Pinned: %s AeroAPI ok but no live state (pre-departure?)", info.ident.c_str());
+    DBG_INFO("Pinned: %s no live position from AeroAPI (tried: %s / %s / %s) — pre-departure, on ground, or coverage gap",
+             info.ident.c_str(), info.ident.c_str(), info.ident_icao.c_str(), info.ident_iata.c_str());
   }
 
   // ── Step 4: FlightWall enrichment (logos are LittleFS-cached) ─────────────
@@ -285,13 +290,13 @@ void loop()
 
     if (fc.length() > 0)
     {
-      // New pin: show an "Awaiting data..." placeholder until the fetch lands.
-      FlightInfo ph;
-      ph.ident = fc;
-      ph.pinned = true;
-      ph.airline_display_name_full = "Awaiting data...";
-      g_flights.insert(g_flights.begin(), ph);
-      DBG_INFO("Pinned force fetch: placeholder shown for %s", fc.c_str());
+      // Fetch the pinned flight's data immediately (AeroAPI route + live position
+      // + FlightWall enrichment) rather than inserting a placeholder and waiting
+      // for the full normal fetch cycle (which may run 10+ AeroAPI calls first).
+      g_webUI.setBusy(true, "Pinned flight");
+      promoteOrFetchPinned(g_flights);
+      g_webUI.setBusy(false, "");
+      DBG_INFO("Pinned force fetch: immediate enrichment done for %s", fc.c_str());
     }
     else
     {
@@ -301,7 +306,10 @@ void loop()
     g_display.resetRenderState();
     if (!g_flights.empty())
       g_display.displayFlights(g_flights);
-    g_lastFetchMs = 0; // force shouldFetch true this iteration
+    // No g_lastFetchMs reset here — the pinned data is already fetched
+    // immediately above; triggering a full OpenSky+AeroAPI cycle just because
+    // the pin changed caused double promoteOrFetchPinned calls and an
+    // unnecessary extra fetch cycle. The normal interval handles in-radius refresh.
   }
 
   // ── Live settings change (user clicked "Save") ───────────────────────────────
@@ -339,6 +347,12 @@ void loop()
 
   if (shouldFetch)
   {
+    // If a pinned-flight POST arrived via pump() while this fetch was already
+    // in flight, _pendingForceFetch will be set. The promoteOrFetchPinned() call
+    // at the end of this block handles it — consume the flag now so the force-
+    // fetch handler doesn't fire a second immediate call on the next tick.
+    (void)g_webUI.takePendingForceFetch();
+
     std::vector<StateVector> states;
     std::vector<FlightInfo>  flights;
     const bool isForceFetch = (g_lastFetchMs == 0);
