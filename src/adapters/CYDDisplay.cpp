@@ -122,6 +122,16 @@ void CYDDisplay::clear()
   _splashOnScreen = false;
 }
 
+void CYDDisplay::setBrightness(uint8_t level)
+{
+#if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION_MAJOR >= 3
+  ledcWrite(TFT_BL, level);
+#else
+  ledcWrite(HardwareConfiguration::BL_PWM_CHANNEL, level);
+#endif
+  DBG_INFO("CYDDisplay: backlight set to %u", level);
+}
+
 void CYDDisplay::displayFlights(const std::vector<FlightInfo> &flights)
 {
   if (!_tft)
@@ -133,11 +143,15 @@ void CYDDisplay::displayFlights(const std::vector<FlightInfo> &flights)
     return;
   }
 
-  const unsigned long now        = millis();
-  const size_t        totalSlots = flights.size() + 1; // +1 for map card
+  const unsigned long now = millis();
+  // The map card is only part of the cycle when something can actually be
+  // plotted; otherwise (e.g. a lone pinned placeholder with no fix) it is
+  // skipped so the map does not appear to "show twice".
+  const bool   hasMap     = anyFlightLocatable(flights);
+  const size_t totalSlots = flights.size() + (hasMap ? 1 : 0);
 
   // Use the map dwell time while the map card is active, card cycle time otherwise
-  const bool   currentlyOnMap = (_currentFlightIndex % totalSlots == flights.size());
+  const bool   currentlyOnMap = hasMap && (_currentFlightIndex % totalSlots == flights.size());
   const unsigned long intervalMs = (currentlyOnMap
       ? RuntimeConfig::mapDisplaySec()
       : RuntimeConfig::displayCycleSec()) * 1000UL;
@@ -149,7 +163,7 @@ void CYDDisplay::displayFlights(const std::vector<FlightInfo> &flights)
   }
 
   const size_t idx   = _currentFlightIndex % totalSlots;
-  const bool   isMap = (idx == flights.size());
+  const bool   isMap = hasMap && (idx == flights.size());
   const String key   = isMap ? mapRenderKey(flights) : renderKey(flights[idx]);
 
   if (_lastRenderedIndex == idx &&
@@ -219,6 +233,7 @@ String CYDDisplay::renderKey(const FlightInfo &f) const
          String(f.actual_out_epoch) + "|" +
          String(f.estimated_in_epoch) + "|" +
          resolveLiveSummary(f) + "|" +
+         (f.pinned ? "P" : "") + "|" +
          minuteBucket;
 }
 
@@ -291,9 +306,15 @@ void CYDDisplay::drawMapCard(const std::vector<FlightInfo> &flights)
   // Header: solid black strip for contrast against any map background
   _tft->fillRect(0, 0, _w, 20, 0x0000);
   _tft->setFreeFont(F_SUB);
+
+  // Count only flights with live positions (pinned placeholders have NaN lat/lon)
+  size_t liveCount = 0;
+  for (const auto &f : flights)
+    if (!isnan(f.lat) && !isnan(f.lon)) liveCount++;
+
   _tft->setTextColor(COLOR_SUB, 0x0000);
   _tft->setTextDatum(MR_DATUM);
-  String cnt = String(flights.size()) + (flights.size() == 1 ? " flight" : " flights");
+  String cnt = String(liveCount) + (liveCount == 1 ? " flight" : " flights");
   _tft->drawString(cnt, _w - 6, 10);
 
   if (!hasMap)
@@ -319,12 +340,70 @@ void CYDDisplay::drawMapCard(const std::vector<FlightInfo> &flights)
 
   for (const auto &f : flights)
   {
-    if (isnan(f.lat) || isnan(f.lon)) continue;
+    // Pinned placeholder or no position — draw edge indicator if bearing is known
+    if (isnan(f.lat) || isnan(f.lon))
+    {
+      if (f.pinned)
+      {
+        // No live position: show callsign in header area (left side)
+        _tft->setTextColor(COLOR_ROUTE, 0x0000);
+        _tft->setTextDatum(ML_DATUM);
+        String ph = resolveCallsign(f) + ": no position";
+        _tft->drawString(fitText(ph, _w / 2 - 4), 4, 10);
+      }
+      continue;
+    }
 
     int16_t fx, fy;
-    if (!MapProvider::latLonToPixel(f.lat, f.lon, _w, _h, fx, fy)) continue;
+    const bool inTile = MapProvider::latLonToPixel(f.lat, f.lon, _w, _h, fx, fy);
+    const bool inView = inTile && (fx >= 3 && fx < _w - 3 && fy >= 21 && fy < _h - 3);
 
-    if (fx < 3 || fx >= _w - 3 || fy < 21 || fy >= _h - 3) continue;
+    if (!inView)
+    {
+      // Pinned flight is outside the current map tile — draw a bearing arrow at
+      // the map edge so the user can see which direction the flight is.
+      if (f.pinned && !isnan(f.bearing_deg))
+      {
+        const float br  = f.bearing_deg * (float)PI / 180.0f;
+        const int16_t mx = _w / 2;
+        const int16_t my = (_h + 20) / 2;  // vertical centre of map area (below header)
+
+        // Find intersection of the bearing ray with the map rectangle
+        const float sinBr = sinf(br), cosBr = cosf(br);
+        float tEdge = 1e6f;
+        if (fabsf(sinBr) > 0.001f) {
+          float t = sinBr > 0 ? (_w - 8 - mx) / sinBr : (mx - 4) / (-sinBr);
+          if (t > 0 && t < tEdge) tEdge = t;
+        }
+        if (fabsf(cosBr) > 0.001f) {
+          float t = cosBr > 0 ? (my - 21) / cosBr : (_h - 4 - my) / (-cosBr);
+          if (t > 0 && t < tEdge) tEdge = t;
+        }
+        const int16_t ax = mx + (int16_t)(sinBr * tEdge);
+        const int16_t ay = my - (int16_t)(cosBr * tEdge);
+
+        // Arrow: filled triangle pointing outward from map centre
+        const float perpBr = br + (float)PI / 2.0f;
+        const int16_t tip_x  = ax + (int16_t)(sinBr * 7);
+        const int16_t tip_y  = ay - (int16_t)(cosBr * 7);
+        const int16_t base1x = ax + (int16_t)(sinf(perpBr) * 5) - (int16_t)(sinBr * 4);
+        const int16_t base1y = ay - (int16_t)(cosf(perpBr) * 5) + (int16_t)(cosBr * 4);
+        const int16_t base2x = ax - (int16_t)(sinf(perpBr) * 5) - (int16_t)(sinBr * 4);
+        const int16_t base2y = ay + (int16_t)(cosf(perpBr) * 5) + (int16_t)(cosBr * 4);
+        _tft->fillTriangle(tip_x, tip_y, base1x, base1y, base2x, base2y, COLOR_ROUTE);
+
+        // Callsign + distance label
+        String lbl = resolveCallsign(f);
+        if (!isnan(f.distance_km))
+          lbl += " " + String((int)lround(f.distance_km)) + "km";
+        const int16_t lx = ax - (int16_t)(sinBr * 18);
+        const int16_t ly = ay + (int16_t)(cosBr * 18);
+        _tft->setTextColor(COLOR_ROUTE);
+        _tft->setTextDatum(MC_DATUM);
+        _tft->drawString(fitText(lbl, 70), lx, ly);
+      }
+      continue;
+    }
 
     const uint16_t col = f.enriched ? RuntimeConfig::labelColor() : COLOR_MAP_UNENR;
 
@@ -629,16 +708,28 @@ void CYDDisplay::drawFlightCard(const FlightInfo &f, size_t idx, size_t total)
   _tft->fillScreen(UserConfiguration::COLOR_BACKGROUND);
   _splashOnScreen = false;
 
+  // Pinned flights get an amber header strip — immediately obvious at a glance.
+  // Text colours are adjusted for contrast against the amber background.
+  const uint16_t headerBg = f.pinned ? UserConfiguration::COLOR_ROUTE
+                                     : UserConfiguration::COLOR_BACKGROUND;
+  if (f.pinned)
+    _tft->fillRect(0, 0, _w, divY1, UserConfiguration::COLOR_ROUTE);
+
   // Counter — small, top-left
   _tft->setFreeFont(F_SUB);
   _tft->setTextDatum(ML_DATUM);
-  _tft->setTextColor(UserConfiguration::COLOR_SUB, UserConfiguration::COLOR_BACKGROUND);
+  _tft->setTextColor(f.pinned ? UserConfiguration::COLOR_BACKGROUND : UserConfiguration::COLOR_SUB,
+                     headerBg);
   _tft->drawString(String(idx) + "/" + String(total), hPad, csMidY);
+
+  // Pin indicator — small black dot on amber header
+  if (f.pinned)
+    _tft->fillRect(_w - hPad - 5, csMidY - 2, 5, 5, UserConfiguration::COLOR_BACKGROUND);
 
   // Flight number — large, centered
   _tft->setFreeFont(F_CALLSIGN);
   _tft->setTextDatum(MC_DATUM);
-  _tft->setTextColor(UserConfiguration::COLOR_CALLSIGN, UserConfiguration::COLOR_BACKGROUND);
+  _tft->setTextColor(UserConfiguration::COLOR_CALLSIGN, headerBg);
   _tft->drawString(fitText(resolveCallsign(f), _w - 60), _w / 2, csMidY);
 
   // Dividers

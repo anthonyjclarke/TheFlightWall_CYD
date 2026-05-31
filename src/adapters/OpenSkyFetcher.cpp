@@ -268,6 +268,31 @@ static bool parseStatesPayload(const String &payload, double centerLat, double c
     return true;
 }
 
+// Parse the first valid state vector from a states/all payload.
+// Uses a near-infinite radius so distance never filters the result,
+// but distance_km and bearing_deg are still computed from the configured centre.
+static bool parseFirstStateVectorFromPayload(const String &payload, StateVector &out)
+{
+    DynamicJsonDocument doc(8192);
+    DeserializationError err = deserializeJson(doc, payload);
+    if (err)
+    {
+        DBG_ERROR("OpenSky: callsign query JSON parse error: %s", err.c_str());
+        return false;
+    }
+    JsonArray states = doc["states"].as<JsonArray>();
+    if (states.isNull() || states.size() == 0)
+    {
+        DBG_INFO("OpenSky: callsign query returned no state vectors");
+        return false;
+    }
+    return parseStateVector(states[0],
+                            RuntimeConfig::centerLat(),
+                            RuntimeConfig::centerLon(),
+                            1e9,   // no distance filter — accept from anywhere
+                            out);
+}
+
 bool OpenSkyFetcher::fetchStateVectors(double centerLat,
                                        double centerLon,
                                        double radiusKm,
@@ -377,4 +402,89 @@ bool OpenSkyFetcher::fetchStateVectors(double centerLat,
     String payload = http.getString();
     http.end();
     return parseStatesPayload(payload, centerLat, centerLon, radiusKm, outStateVectors);
+}
+
+bool OpenSkyFetcher::fetchByCallsign(const String &callsign, StateVector &out)
+{
+    const unsigned long nowMs = millis();
+    if (m_rateLimitedUntilMs > 0 && nowMs < m_rateLimitedUntilMs)
+    {
+        DBG_WARN("OpenSky: rate-limited, skipping pinned-flight callsign query");
+        return false;
+    }
+
+    if (!ensureAccessToken(false))
+    {
+        DBG_WARN("OpenSky: auth failed for callsign query");
+        return false;
+    }
+
+    String cs = callsign;
+    cs.toUpperCase();
+    String url = String(APIConfiguration::OPENSKY_BASE_URL) + "/api/states/all?callsign=" + cs;
+    DBG_INFO("OpenSky: callsign query for %s", cs.c_str());
+
+    WiFiClientSecure client;
+    client.setInsecure();
+    HTTPClient http;
+    http.begin(client, url);
+    http.setTimeout(15000);
+    http.addHeader("Authorization", String("Bearer ") + m_accessToken);
+    const char *collectHdrs[] = { "X-Rate-Limit-Retry-After-Seconds", "X-Rate-Limit-Remaining" };
+    http.collectHeaders(collectHdrs, 2);
+
+    int code = http.GET();
+
+    if (code == 401 && m_accessToken.length() > 0)
+    {
+        http.end();
+        if (!ensureAccessToken(true))
+        {
+            DBG_WARN("OpenSky: token refresh failed after 401 (callsign query)");
+            return false;
+        }
+        WiFiClientSecure retryClient;
+        retryClient.setInsecure();
+        HTTPClient retry;
+        retry.begin(retryClient, url);
+        retry.setTimeout(15000);
+        retry.addHeader("Authorization", String("Bearer ") + m_accessToken);
+        const char *retryHdrs[] = { "X-Rate-Limit-Retry-After-Seconds", "X-Rate-Limit-Remaining" };
+        retry.collectHeaders(retryHdrs, 2);
+        code = retry.GET();
+        if (code != 200)
+        {
+            DBG_WARN("OpenSky: callsign retry failed, code: %d", code);
+            retry.end();
+            return false;
+        }
+        updateCreditsFromHeader(retry);
+        String retryPayload = retry.getString();
+        retry.end();
+        return parseFirstStateVectorFromPayload(retryPayload, out);
+    }
+
+    if (code == 429)
+    {
+        String retryAfterHdr = http.header("X-Rate-Limit-Retry-After-Seconds");
+        unsigned long backoffSec = retryAfterHdr.length() ? retryAfterHdr.toInt() : 3600;
+        if (backoffSec == 0) backoffSec = 3600;
+        m_rateLimitedUntilMs = millis() + backoffSec * 1000UL;
+        updateCreditsFromHeader(http);
+        DBG_WARN("OpenSky: callsign query 429 — rate-limited %s", fmtDuration(backoffSec).c_str());
+        http.end();
+        return false;
+    }
+
+    if (code != 200)
+    {
+        DBG_WARN("OpenSky: callsign query failed, code: %d", code);
+        http.end();
+        return false;
+    }
+
+    updateCreditsFromHeader(http);
+    String payload = http.getString();
+    http.end();
+    return parseFirstStateVectorFromPayload(payload, out);
 }

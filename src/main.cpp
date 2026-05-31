@@ -1,4 +1,5 @@
 #include <vector>
+#include <algorithm>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 #include <WiFiManager.h>
@@ -11,6 +12,7 @@
 #include "OpenSkyFetcher.h"
 #include "AeroAPIFetcher.h"
 #include "FlightDataFetcher.h"
+#include "FlightWallFetcher.h"
 #include "CYDDisplay.h"
 #include "MapProvider.h"
 #include "WebUIServer.h"
@@ -99,6 +101,7 @@ void setup()
   RuntimeConfig::load();
   initFilesystem();
   initDisplay();
+  g_display.setBrightness(RuntimeConfig::brightness()); // honour saved brightness at boot
   // Hold the splash on screen for ≥1.5 s before WiFi/NTP status messages
   // overwrite it. Per branding spec; OK to delay in setup().
   delay(1500);
@@ -129,6 +132,126 @@ void setup()
   DBG_INFO("Free heap: %u bytes", ESP.getFreeHeap());
 }
 
+// ── Pinned flight: promote from existing list or fetch separately ─────────────
+// Called once per fetch cycle after g_flights has been resolved to its
+// last-good-or-new state. Prepends the pinned card at slot 0.
+static void promoteOrFetchPinned(std::vector<FlightInfo> &flights)
+{
+  String pinned = RuntimeConfig::pinnedFlightNumber();
+  pinned.trim();
+  pinned.toUpperCase();
+  if (pinned.length() == 0)
+  {
+    // Pinned flight cleared — strip any stale pinned card so it disappears
+    // immediately rather than lingering via last-good retention.
+    flights.erase(std::remove_if(flights.begin(), flights.end(),
+                                 [](const FlightInfo &f) { return f.pinned; }),
+                  flights.end());
+    return;
+  }
+
+  // Case-insensitive match against all known identifiers for a flight.
+  auto matchesPinned = [&](const FlightInfo &f) -> bool {
+    String a = f.ident;      a.toUpperCase();
+    String b = f.ident_iata; b.toUpperCase();
+    String c = f.ident_icao; c.toUpperCase();
+    return a == pinned || b == pinned || c == pinned;
+  };
+
+  // ── Step 1: pinned flight already in the normal in-radius list? ───────────
+  auto it = std::find_if(flights.begin(), flights.end(), matchesPinned);
+  if (it != flights.end())
+  {
+    it->pinned = true;
+    std::rotate(flights.begin(), it, it + 1);
+    DBG_INFO("Pinned: %s promoted to slot 0 (in radius)", pinned.c_str());
+    return;
+  }
+
+  // ── Step 2: not in list — enrich via AeroAPI ──────────────────────────────
+  FlightInfo info;
+  g_display.showFetchStatus("Pinned flight");
+  if (!g_aeroApi.fetchFlightInfo(pinned, info))
+  {
+    // No active record yet (pre-departure, cancelled, or wrong callsign).
+    // Insert a placeholder so the TFT always shows that a pinned flight is
+    // configured, rather than silently having no card.
+    FlightInfo ph;
+    ph.ident  = pinned;
+    ph.pinned = true;
+    ph.airline_display_name_full = "Awaiting data...";
+    if (!flights.empty() && flights[0].pinned)
+      flights[0] = ph;
+    else
+      flights.insert(flights.begin(), ph);
+    DBG_INFO("Pinned: %s not active — placeholder at slot 0", pinned.c_str());
+    return;
+  }
+  info.enriched = true;
+
+  // AeroAPI may have resolved to the ICAO ident — check for duplicate again.
+  auto it2 = std::find_if(flights.begin(), flights.end(), matchesPinned);
+  if (it2 != flights.end())
+  {
+    it2->pinned = true;
+    std::rotate(flights.begin(), it2, it2 + 1);
+    DBG_INFO("Pinned: %s matched by ICAO ident after AeroAPI", info.ident.c_str());
+    return;
+  }
+
+  // ── Step 3: live state via callsign query (flight anywhere in the world) ──
+  StateVector sv;
+  if (g_openSky.fetchByCallsign(info.ident, sv))
+  {
+    info.icao24            = sv.icao24;
+    info.origin_country    = sv.origin_country;
+    info.time_position     = sv.time_position;
+    info.lon               = sv.lon;
+    info.lat               = sv.lat;
+    info.distance_km       = sv.distance_km;
+    info.bearing_deg       = sv.bearing_deg;
+    info.baro_altitude_m   = sv.baro_altitude;
+    info.geo_altitude_m    = sv.geo_altitude;
+    info.velocity_mps      = sv.velocity;
+    info.heading_deg       = sv.heading;
+    info.vertical_rate_mps = sv.vertical_rate;
+    info.last_contact      = sv.last_contact;
+    info.squawk            = sv.squawk;
+    info.position_source   = sv.position_source;
+    info.on_ground         = sv.on_ground;
+    DBG_INFO("Pinned: %s live state acquired (%.0f km)", info.ident.c_str(), info.distance_km);
+  }
+  else
+  {
+    DBG_INFO("Pinned: %s AeroAPI ok but no live state (pre-departure?)", info.ident.c_str());
+  }
+
+  // ── Step 4: FlightWall enrichment (logos are LittleFS-cached) ─────────────
+  FlightWallFetcher fw;
+  if (info.operator_icao.length())
+  {
+    String airlineFull; uint16_t airlineColor;
+    if (fw.getAirlineData(info.operator_icao, airlineFull, airlineColor))
+    {
+      info.airline_display_name_full = airlineFull;
+      info.airline_color = airlineColor;
+    }
+    String logoPath;
+    if (fw.getAirlineLogo(info.operator_icao, info.operator_iata, logoPath))
+      info.logo_path = logoPath;
+  }
+  if (info.aircraft_code.length())
+  {
+    String sh, full;
+    if (fw.getAircraftName(info.aircraft_code, sh, full) && sh.length())
+      info.aircraft_display_name_short = sh;
+  }
+
+  info.pinned = true;
+  flights.insert(flights.begin(), info);
+  DBG_INFO("Pinned: %s added as slot 0 (out of radius)", info.ident.c_str());
+}
+
 void loop()
 {
   // ── WebUI / reboot handling ────────────────────────────────────────────────
@@ -143,6 +266,59 @@ void loop()
   {
     DBG_INFO("Rebooting after config save");
     ESP.restart();
+  }
+
+  // ── Pinned flight changed in WebUI (user clicked "Update") ───────────────────
+  // Act immediately so the TFT and dashboard reflect the change without waiting
+  // for the next fetch interval.  g_lastFetchMs = 0 forces shouldFetch true this
+  // same iteration.
+  if (g_webUI.takePendingForceFetch())
+  {
+    String fc = RuntimeConfig::pinnedFlightNumber();
+    fc.trim();
+
+    // Always strip any existing pinned card first — covers both re-pinning a
+    // different flight and clearing the pin entirely (fixes stale-card lag).
+    g_flights.erase(std::remove_if(g_flights.begin(), g_flights.end(),
+                                   [](const FlightInfo &f) { return f.pinned; }),
+                    g_flights.end());
+
+    if (fc.length() > 0)
+    {
+      // New pin: show an "Awaiting data..." placeholder until the fetch lands.
+      FlightInfo ph;
+      ph.ident = fc;
+      ph.pinned = true;
+      ph.airline_display_name_full = "Awaiting data...";
+      g_flights.insert(g_flights.begin(), ph);
+      DBG_INFO("Pinned force fetch: placeholder shown for %s", fc.c_str());
+    }
+    else
+    {
+      DBG_INFO("Pinned cleared: stale card stripped");
+    }
+
+    g_display.resetRenderState();
+    if (!g_flights.empty())
+      g_display.displayFlights(g_flights);
+    g_lastFetchMs = 0; // force shouldFetch true this iteration
+  }
+
+  // ── Live settings change (user clicked "Save") ───────────────────────────────
+  // Settings apply without a reboot: brightness is written to the backlight,
+  // OpenSky credentials force a token refresh, and a fresh fetch is triggered so
+  // location / radius / timing / label-colour changes show within seconds.
+  if (g_webUI.takePendingReauth())
+  {
+    g_openSky.invalidateToken();
+    DBG_INFO("Settings: OpenSky credentials changed — token invalidated");
+  }
+  if (g_webUI.takePendingApply())
+  {
+    g_display.setBrightness(RuntimeConfig::brightness());
+    g_display.resetRenderState(); // label colour / layout may have changed
+    g_lastFetchMs = 0;            // refresh promptly with the new settings
+    DBG_INFO("Settings: applied live (brightness, label colour, location, timing)");
   }
 
   // ── Flight fetch / display ─────────────────────────────────────────────────
@@ -165,7 +341,8 @@ void loop()
   {
     std::vector<StateVector> states;
     std::vector<FlightInfo>  flights;
-    g_display.showFetchStatus("Fetching...");
+    const bool isForceFetch = (g_lastFetchMs == 0);
+    g_display.showFetchStatus(isForceFetch ? "Refreshing..." : "Fetching...");
     g_webUI.setBusy(true, "Starting fetch");
     const size_t enriched = g_fetcher->fetchFlights(states, flights);
     g_webUI.setBusy(false, "");
@@ -216,6 +393,11 @@ void loop()
                        String("No active flights within ") + String((int)RuntimeConfig::radiusKm()) + "km";
     }
     // else: fetch returned nothing but we still have last-good g_flights — keep showing it.
+
+    // Promote or fetch the user-configured pinned flight (no-op if not set).
+    g_webUI.setBusy(true, "Pinned flight");
+    promoteOrFetchPinned(g_flights);
+    g_webUI.setBusy(false, "");
 
     g_webUI.recordFetch(states, flights, enriched);
     // Pre-fetch / validate the map cache — returns immediately on a 24-hour cache hit.

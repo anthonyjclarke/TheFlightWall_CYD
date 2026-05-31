@@ -46,6 +46,7 @@ h1{font-size:clamp(26px,3vw,38px);font-weight:540;line-height:1;margin:0;letter-
 .tft{width:100%;aspect-ratio:4/3;background:#000;border-radius:4px;display:flex;flex-direction:column;color:#fff;font-family:Arial,sans-serif;overflow:hidden}
 .tft[data-wide=true]{aspect-ratio:3/2}
 .tft-top{height:17%;display:flex;align-items:center;border-bottom:1px solid #272d30;padding:0 3%;gap:18px}
+.tft-top.pin{background:var(--amber);border-bottom-color:var(--amber)}.tft-top.pin .tft-count,.tft-top.pin .tft-ident{color:#16181a}
 .tft-count{font-size:clamp(11px,1vw,14px);color:#acb5ba}
 .tft-ident{font-size:clamp(25px,3vw,38px);font-weight:700;flex:1;text-align:center;margin-right:36px}
 .tft-mid{height:43%;border-bottom:1px solid #272d30;display:grid;grid-template-columns:37% 63%;align-items:center}
@@ -62,8 +63,11 @@ h1{font-size:clamp(26px,3vw,38px);font-weight:540;line-height:1;margin:0;letter-
 .event:first-child{color:#e7ecee}.empty{color:var(--ink-dim);padding:22px 0}
 .section{margin-bottom:18px}.cards{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(230px,280px);gap:12px;padding:0 18px 18px;overflow-x:auto;scroll-behavior:smooth;-webkit-overflow-scrolling:touch}.cards::-webkit-scrollbar{height:4px}.cards::-webkit-scrollbar-thumb{background:var(--line);border-radius:2px}.nav-btn{background:transparent;border:1px solid var(--line);color:var(--ink-dim);width:26px;height:26px;border-radius:6px;font-size:18px;line-height:1;cursor:pointer;padding:0;display:inline-flex;align-items:center;justify-content:center}.nav-btn:hover{border-color:var(--amber);color:var(--amber);background:rgba(255,155,46,.1)}.tag-adsb{color:var(--cyan);border-color:rgba(95,183,214,.32)}
 .flight{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:15px;min-height:250px}
+.flight.pin{border-color:rgba(255,155,46,.55);box-shadow:0 0 0 1px rgba(255,155,46,.2),0 0 18px rgba(255,155,46,.08)}
 .flight-id{display:flex;justify-content:space-between;align-items:start;margin-bottom:15px}.flight h3{font-size:22px;margin:0;letter-spacing:-.02em}
+.tags{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}
 .tag{color:var(--green);border:1px solid rgba(72,208,149,.32);font-size:10px;border-radius:12px;padding:3px 7px;letter-spacing:.1em}
+.tag-pin{color:var(--amber);border-color:rgba(255,155,46,.5);background:rgba(255,155,46,.08)}
 .route{font-size:22px;color:var(--amber);font-weight:650;margin-bottom:4px}.city{font-size:12px;color:var(--ink-dim);min-height:32px;margin-bottom:12px}
 .facts{display:grid;grid-template-columns:1fr 1fr;gap:10px 8px}.fact span{display:block;color:var(--ink-dim);font-size:10px;text-transform:uppercase;letter-spacing:.11em;margin-bottom:3px}.fact b{font-size:13px;font-weight:500}
 .settings{padding:0 20px 22px}.settings-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.field label{display:block;color:var(--ink-dim);font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin:0 0 6px}
@@ -85,7 +89,7 @@ footer h4{color:var(--ink);font-size:11px;letter-spacing:.15em;text-transform:up
 <body><div class="shell">
 <header><div class="brand"><svg viewBox="0 0 360 80" xmlns="http://www.w3.org/2000/svg" aria-label="The Flight Wall &#8212; CYD Edition" style="height:54px;width:auto;display:block"><g transform="translate(18 9)"><circle cx="31" cy="31" r="27" fill="none" stroke="#ff9b2e" stroke-opacity=".45"/><circle cx="31" cy="31" r="16" fill="none" stroke="#ff9b2e" stroke-opacity=".7"/><line x1="4" y1="31" x2="58" y2="31" stroke="#ff9b2e" stroke-opacity=".18"/><line x1="31" y1="4" x2="31" y2="58" stroke="#ff9b2e" stroke-opacity=".18"/><path d="M31 31L31 4A27 27 0 0 1 54.38 17.5Z" fill="#ff9b2e" opacity=".55"/><circle cx="31" cy="31" r="2.5" fill="#ff9b2e"/></g><text class="wordmark" x="96" y="37">The Flight Wall</text><text class="subline" x="96" y="58">CYD EDITION</text></svg><small style="display:block;color:var(--ink-dim);font-size:11px;letter-spacing:.05em;margin-top:6px;padding-left:2px">v)rawlit" FW_VERSION_STR R"rawlit(</small></div><div class="status"><span class="dot"></span><span id="connection">Connecting to device</span><span id="clock"></span><span id="nextupd" style="display:none;padding-left:10px;border-left:1px solid var(--line);margin-left:4px"></span><span id="credits" style="display:none;padding-left:10px;border-left:1px solid var(--line);margin-left:4px"></span></div></header><div class="api-alert" id="api-alert"></div><div class="busy-bar" id="busy-bar"><span class="busy-dot"></span><span id="busy-text">Device busy</span></div>
 <div class="grid">
- <section class="panel"><div class="panel-head"><span class="panel-title">TFT Mirror <span id="resolution" style="font-weight:400;opacity:.55;font-size:14px;letter-spacing:.01em;text-transform:none"></span></span><div style="display:flex;gap:8px;align-items:center"><span class="pill" id="map-pill" style="display:none;color:var(--amber);border-color:var(--amber)">&#9673; MAP CARD</span><span class="pill">Browser Replica / Low Impact</span></div></div><div class="monitor-wrap"><div class="bezel"><div class="tft" id="tft"><div class="tft-top"><span class="tft-count" id="scount">0/0</span><span class="tft-ident" id="sident">SEARCHING...</span></div><div class="tft-mid"><div class="tft-airline" id="sairline"></div><div><div class="tft-route" id="sroute">--- - ---</div><div class="tft-aircraft" id="saircraft"></div></div></div><div class="tft-status"><div id="sline1"></div><div id="sline2"></div></div><div class="bar"><span id="sbar"></span></div></div><div id="tftmap" style="display:none;width:100%;aspect-ratio:4/3;background:#000;border-radius:4px;overflow:hidden;position:relative"><img id="tftmaptile" style="width:100%;height:100%;display:block;object-fit:cover" alt="Map mirror"><svg id="tftmapol" preserveAspectRatio="none" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none"></svg></div></div><div class="monitor-foot"><a href="/api/screenshot" download style="color:var(--ink-dim);font-size:12px;text-decoration:none;border:1px solid var(--line);padding:4px 10px;border-radius:4px">&#8681; Screenshot (BMP)</a></div></div></section>
+ <section class="panel"><div class="panel-head"><span class="panel-title">TFT Mirror <span id="resolution" style="font-weight:400;opacity:.55;font-size:14px;letter-spacing:.01em;text-transform:none"></span></span><div style="display:flex;gap:8px;align-items:center"><span class="pill" id="map-pill" style="display:none;color:var(--amber);border-color:var(--amber)">&#9673; MAP CARD</span><span class="pill">Browser Replica / Low Impact</span></div></div><div class="monitor-wrap"><div class="bezel"><div class="tft" id="tft"><div class="tft-top" id="stoptop"><span class="tft-count" id="scount">0/0</span><span class="tft-ident" id="sident">SEARCHING...</span></div><div class="tft-mid"><div class="tft-airline" id="sairline"></div><div><div class="tft-route" id="sroute">--- - ---</div><div class="tft-aircraft" id="saircraft"></div></div></div><div class="tft-status"><div id="sline1"></div><div id="sline2"></div></div><div class="bar"><span id="sbar"></span></div></div><div id="tftmap" style="display:none;width:100%;aspect-ratio:4/3;background:#000;border-radius:4px;overflow:hidden;position:relative"><img id="tftmaptile" style="width:100%;height:100%;display:block;object-fit:cover" alt="Map mirror"><svg id="tftmapol" preserveAspectRatio="none" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none"></svg></div></div><div class="monitor-foot"><a href="/api/screenshot" download style="color:var(--ink-dim);font-size:12px;text-decoration:none;border:1px solid var(--line);padding:4px 10px;border-radius:4px">&#8681; Screenshot (BMP)</a></div></div></section>
  <section class="panel"><div class="panel-head"><span class="panel-title">Flight Data Feed</span><span class="pill">Volatile / API Reads</span></div><div class="stream" id="events"><div class="empty">Waiting for a fetch cycle...</div></div></section>
 </div>
 <section class="panel section"><div class="panel-head"><span class="panel-title">Current Flights</span><div style="display:flex;align-items:center;gap:8px"><button class="nav-btn" onclick="scrollCards(-1)">&#8249;</button><span class="pill" id="flightCount">0 flights</span><button class="nav-btn" onclick="scrollCards(1)">&#8250;</button></div></div><div class="cards" id="flights"><div class="empty">No current flights.</div></div></section>
@@ -94,7 +98,8 @@ footer h4{color:var(--ink);font-size:11px;letter-spacing:.15em;text-transform:up
   <div class="field"><label>Latitude</label><input type="number" id="lat" step="0.0001"></div><div class="field"><label>Longitude</label><input type="number" id="lon" step="0.0001"></div>
   <div class="field"><label>Radius km</label><input type="number" id="radius" min="1" max="500"></div><div class="field"><label>Brightness</label><input type="number" id="brightness" min="0" max="255"></div>
   <div class="field"><label>Fetch interval sec</label><input type="number" id="fetch_sec" min="10" max="3600"></div><div class="field"><label>Card cycle sec</label><input type="number" id="cycle_sec" min="1" max="60"></div><div class="field"><label>Map display sec</label><input type="number" id="map_sec" min="5" max="300"></div>
-  <div class="field"><label>Map label colour <span class="info" data-tip="Colour used for enriched flight markers (dot, heading tick and callsign label) on BOTH the CYD map card and the WebUI map preview. Saved to NVS — applied to CYD on next boot.">&#9432;</span></label><input type="color" id="labelColor" value="#1e90ff" oninput="updateMapOverlay()" style="width:100%;height:38px;padding:2px;cursor:pointer"></div>
+  <div class="field"><label>Map label colour <span class="info" data-tip="Colour used for enriched flight markers (dot, heading tick and callsign label) on BOTH the CYD map card and the WebUI map preview. Saved to NVS — applied live on the next map render.">&#9432;</span></label><input type="color" id="labelColor" value="#1e90ff" oninput="updateMapOverlay()" style="width:100%;height:38px;padding:2px;cursor:pointer"></div>
+  <div class="field"><label>Pinned Flight <span class="info" data-tip="Card always at slot 1 in the TFT cycle, tracked every fetch regardless of radar radius. IATA (e.g. QF1) or ICAO (e.g. QFA001). Clear to disable.">&#9432;</span></label><input type="text" id="pinned_flight" placeholder="e.g. QF1 or QFA001" maxlength="8" style="text-transform:uppercase"><div class="cred-note"><button onclick="savePinnedFlight()" style="background:transparent;border:1px solid var(--line);color:var(--ink-dim);font-size:11px;padding:3px 10px;border-radius:6px;cursor:pointer" onmouseover="this.style.borderColor='var(--amber)';this.style.color='var(--amber)'" onmouseout="this.style.borderColor='var(--line)';this.style.color='var(--ink-dim)'">Update</button> <span id="pinnedMsg" style="font-size:11px"></span></div></div>
  </div>
  <div id="mapwrap" style="margin:14px 0 0;display:none;border:1px solid var(--line);border-radius:12px;overflow:hidden;max-width:50%"><div style="display:flex;justify-content:space-between;align-items:center;padding:7px 14px;background:var(--panel2)"><span style="font-size:11px;color:var(--ink-dim);letter-spacing:.1em;text-transform:uppercase">Map Preview</span><div style="display:flex;align-items:center;gap:10px"><label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--ink-dim);cursor:pointer;user-select:none"><input type="checkbox" id="showFlights" checked onchange="updateMapOverlay()" style="width:auto;margin:0;cursor:pointer"> Flights</label><button onclick="refreshMapPreview()" style="background:transparent;border:1px solid var(--line);color:var(--ink-dim);font-size:11px;padding:3px 10px;border-radius:6px;cursor:pointer">&#8635; Refresh</button></div></div><div style="position:relative;line-height:0"><img id="maptile" style="width:100%;display:block" alt="Map preview"><svg id="mapol" viewBox="0 0 320 240" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none"></svg></div></div>
  <div class="credentials">
@@ -102,7 +107,7 @@ footer h4{color:var(--ink);font-size:11px;letter-spacing:.15em;text-transform:up
   <div class="field"><label>OpenSky Secret <span id="oskyState"></span></label><input type="password" id="osky_sec" placeholder="Leave blank to retain"></div>
   <div class="field"><label>AeroAPI Key <span id="aeroState"></span></label><input type="password" id="aero_key" placeholder="Leave blank to retain"><div class="cred-note"><input type="checkbox" id="clear_aero" style="width:auto"> Clear AeroAPI key</div></div>
  </div>
- <div class="actions"><span class="message" id="msg">Credential values are never returned to this page.</span><div style="display:flex;gap:10px"><button id="mapfetch" style="background:var(--panel2);border:1px solid var(--line);color:var(--ink-dim);font-weight:500;border-radius:9px;padding:11px 18px;cursor:pointer" onmouseover="this.style.borderColor='var(--amber)';this.style.color='var(--amber)'" onmouseout="this.style.borderColor='var(--line)';this.style.color='var(--ink-dim)'" onclick="fetchMap(this)">Fetch Map</button><button id="save" onclick="saveConfig()">Save &amp; Reboot</button></div></div>
+ <div class="actions"><span class="message" id="msg">Credential values are never returned to this page.</span><div style="display:flex;gap:10px"><button id="mapfetch" style="background:var(--panel2);border:1px solid var(--line);color:var(--ink-dim);font-weight:500;border-radius:9px;padding:11px 18px;cursor:pointer" onmouseover="this.style.borderColor='var(--amber)';this.style.color='var(--amber)'" onmouseout="this.style.borderColor='var(--line)';this.style.color='var(--ink-dim)'" onclick="fetchMap(this)">Fetch Map</button><button id="reboot" style="background:var(--panel2);border:1px solid var(--line);color:var(--ink-dim);font-weight:500;border-radius:9px;padding:11px 18px;cursor:pointer" onmouseover="this.style.borderColor='#e0533a';this.style.color='#e0533a'" onmouseout="this.style.borderColor='var(--line)';this.style.color='var(--ink-dim)'" onclick="rebootDevice()" title="Reboot the device — needed only for WiFi reset or recovery">Reboot Device</button><button id="save" onclick="saveConfig()">Save</button></div></div>
 </div></section>
 <footer>
 <div><h4>Contact</h4><div>Anthony Clarke</div><div><a href="mailto:anthonyjclarke [at] gmail.com">anthonyjclarke [@] gmail.com</a></div><div style="margin-top:8px"><a href="https://github.com/anthonyjclarke">GitHub</a> &middot; <a href="https://bsky.app/profile/anthonyjclarke.bsky.social">BlueSky</a> &middot; <a href="https://www.threads.net/@anthonyjclarke">Threads</a> &middot; <a href="https://www.linkedin.com/in/anthonyjclarke">LinkedIn</a></div></div>
@@ -140,11 +145,12 @@ function renderScreen(screen){
   if(!tile.src||tile.dataset.stale==='1'){tile.src='/api/mappreview?t='+Date.now();tile.dataset.stale='';}
   if(tile.complete&&tile.naturalWidth)updateMapOverlay(tile,$('tftmapol'));
   else tile.onload=function(){updateMapOverlay(tile,$('tftmapol'));};
-  $('scount').textContent='MAP';
+  $('scount').textContent='MAP';$('stoptop').classList.remove('pin');
   return;
  }
  const f=screen.flight;
- if(!f){$('sident').textContent='SEARCHING...';$('scount').textContent='0/0';$('sroute').textContent='--- - ---';$('sairline').textContent='';$('saircraft').textContent='';$('sline1').textContent='';$('sline2').textContent='';$('sbar').style.width='0';return;}
+ if(!f){$('sident').textContent='SEARCHING...';$('scount').textContent='0/0';$('sroute').textContent='--- - ---';$('sairline').textContent='';$('saircraft').textContent='';$('sline1').textContent='';$('sline2').textContent='';$('sbar').style.width='0';$('stoptop').classList.remove('pin');return;}
+ $('stoptop').classList.toggle('pin',!!f.pinned);
  $('scount').textContent=`${screen.index+1}/${screen.total}`;$('sident').textContent=val(f.ident,'UNKNOWN');$('sroute').textContent=route(f);$('saircraft').textContent=val(f.aircraft_display,f.aircraft_code||'');
  $('sairline').innerHTML=''; if(f.logo){const img=document.createElement('img');img.src='/api/logo?name='+encodeURIComponent(f.logo);$('sairline').appendChild(img);}else $('sairline').textContent=val(f.airline,f.operator_icao||'');
  const lines=statusLines(f);$('sline1').textContent=lines[0];$('sline2').textContent=lines[1];
@@ -156,9 +162,12 @@ function renderFlights(list){
  $('flightCount').textContent=list.length?`${list.length} card${list.length!==1?'s':''}${nEnr<list.length?' · '+nEnr+' enriched':''}`:' 0 flights';
  if(!list.length){$('flights').innerHTML='<div class="empty">No current flights.</div>';return;}
  $('flights').innerHTML=list.map(f=>{
-  const tag=f.enriched?'<span class="tag">ENRICHED</span>':'<span class="tag tag-adsb">ADS-B</span>';
+  const baseTag=f.enriched?'<span class="tag">ENRICHED</span>':'<span class="tag tag-adsb">ADS-B</span>';
+  const tag=`<div class="tags">${f.pinned?'<span class="tag tag-pin">PINNED</span>':''}${baseTag}</div>`;
+  const hasPos=f.lat!=null&&f.lon!=null;
   const r=f.enriched?`<div class="route">${esc(route(f))}</div><div class="city">${esc(val(f.origin_city,''))}${f.destination_city?' → '+esc(f.destination_city):''}</div>`:`<div class="route" style="font-size:15px;color:var(--ink-dim)">${f.on_ground?'On ground':'Airborne'}</div><div class="city"></div>`;
-  return `<article class="flight"><div class="flight-id"><h3>${esc(val(f.ident))}</h3>${tag}</div>${r}<div class="facts">${fact('Airline',f.airline||f.operator_icao)}${fact('Aircraft',f.aircraft_display||f.aircraft_code)}${fact('Distance',fixed(f.distance_km)+' km')}${fact('Bearing',fixed(f.bearing_deg,0)+' deg')}${fact('Altitude',f.baro_altitude_m!=null?Math.round(f.baro_altitude_m*3.28084)+' ft':null)}${fact('Geo alt',f.geo_altitude_m!=null?Math.round(f.geo_altitude_m*3.28084)+' ft':null)}${fact('Speed',f.velocity_mps!=null?Math.round(f.velocity_mps*3.6)+' km/h':null)}${fact('V/rate',f.vertical_rate_mps!=null?fixed(f.vertical_rate_mps)+' m/s':null)}${fact('Heading',f.heading_deg!=null?fixed(f.heading_deg,0)+' deg':null)}${fact('Departure',when(f.actual_out_epoch))}${fact('Arrival',when(f.estimated_in_epoch))}${fact('ICAO24',f.icao24)}${fact('Squawk',f.squawk)}${fact('Country',f.origin_country)}</div></article>`;
+  const pos=f.pinned?(hasPos?`<div class="city" style="margin-top:4px"><a href="https://www.google.com/maps?q=${f.lat},${f.lon}" target="_blank" rel="noopener" style="color:var(--amber);font-weight:600">&#128205; ${f.lat.toFixed(3)}, ${f.lon.toFixed(3)}${f.distance_km!=null?' &middot; '+fixed(f.distance_km)+' km':''} &mdash; open map</a></div>`:`<div class="city" style="margin-top:4px;color:var(--amber)">&#128205; Locating&hellip;</div>`):'';
+  return `<article class="flight${f.pinned?' pin':''}"><div class="flight-id"><h3>${esc(val(f.ident))}</h3>${tag}</div>${r}${pos}<div class="facts">${fact('Airline',f.airline||f.operator_icao)}${fact('Aircraft',f.aircraft_display||f.aircraft_code)}${fact('Distance',fixed(f.distance_km)+' km')}${fact('Bearing',fixed(f.bearing_deg,0)+' deg')}${fact('Latitude',hasPos?f.lat.toFixed(4):null)}${fact('Longitude',hasPos?f.lon.toFixed(4):null)}${fact('Altitude',f.baro_altitude_m!=null?Math.round(f.baro_altitude_m*3.28084)+' ft':null)}${fact('Geo alt',f.geo_altitude_m!=null?Math.round(f.geo_altitude_m*3.28084)+' ft':null)}${fact('Speed',f.velocity_mps!=null?Math.round(f.velocity_mps*3.6)+' km/h':null)}${fact('V/rate',f.vertical_rate_mps!=null?fixed(f.vertical_rate_mps)+' m/s':null)}${fact('Heading',f.heading_deg!=null?fixed(f.heading_deg,0)+' deg':null)}${fact('Departure',when(f.actual_out_epoch))}${fact('Arrival',when(f.estimated_in_epoch))}${fact('ICAO24',f.icao24)}${fact('Squawk',f.squawk)}${fact('Country',f.origin_country)}</div></article>`;
  }).join('');
 }
 function scrollCards(dir){$('flights').scrollBy({left:dir*290,behavior:'smooth'});}
@@ -190,14 +199,16 @@ async function poll(){
  }catch(e){clearTimeout(t);updateBusyBanner(true,e.name==='AbortError'?'Awaiting response…':'');$('connection').textContent='Device busy';}
 }
 async function loadConfig(){
- try{const d=await(await fetch('/api/config',{cache:'no-store'})).json();['lat','lon','brightness','fetch_sec','cycle_sec','map_sec'].forEach(k=>$(k).value=d[k]??'');$('radius').value=d.radius_km??'';if(d.label_color)$('labelColor').value=d.label_color;$('oskyIdState').textContent=d.opensky_configured?'configured':'';$('oskyState').textContent=d.opensky_configured?'configured':'';$('aeroState').textContent=d.aero_configured?'configured':'';configLoaded=true;updateMapOverlay();}catch(e){$('msg').textContent='Configuration unavailable';}
+ try{const d=await(await fetch('/api/config',{cache:'no-store'})).json();['lat','lon','brightness','fetch_sec','cycle_sec','map_sec'].forEach(k=>$(k).value=d[k]??'');$('radius').value=d.radius_km??'';if(d.label_color)$('labelColor').value=d.label_color;$('pinned_flight').value=d.pinned_flight??'';$('oskyIdState').textContent=d.opensky_configured?'configured':'';$('oskyState').textContent=d.opensky_configured?'configured':'';$('aeroState').textContent=d.aero_configured?'configured':'';configLoaded=true;updateMapOverlay();}catch(e){$('msg').textContent='Configuration unavailable';}
 }
 async function saveConfig(){
  const p={lat:parseFloat($('lat').value),lon:parseFloat($('lon').value),radius_km:Math.max(1,parseFloat($('radius').value)),fetch_sec:Math.max(10,parseInt($('fetch_sec').value)),cycle_sec:Math.max(1,parseInt($('cycle_sec').value)),map_sec:Math.max(5,parseInt($('map_sec').value)),brightness:Math.min(255,Math.max(0,parseInt($('brightness').value))),label_color:$('labelColor').value};
  if($('clear_osky').checked){p.osky_id='';p.osky_sec='';}else{if($('osky_id').value)p.osky_id=$('osky_id').value;if($('osky_sec').value)p.osky_sec=$('osky_sec').value;}
  if($('clear_aero').checked)p.aero_key=''; else if($('aero_key').value)p.aero_key=$('aero_key').value;
- $('save').disabled=true;try{const r=await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});$('msg').textContent=r.ok?'Configuration saved. Device rebooting...':'Save failed.';}catch(e){$('msg').textContent='Save failed: '+e;$('save').disabled=false;}
+ $('save').disabled=true;try{const r=await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});$('msg').textContent=r.ok?'Settings applied — no reboot needed.':'Save failed.';}catch(e){$('msg').textContent='Save failed: '+e;}$('save').disabled=false;
 }
+async function rebootDevice(){if(!confirm('Reboot the device now?'))return;$('reboot').disabled=true;try{await fetch('/api/reboot',{method:'POST'});$('msg').textContent='Rebooting — reconnect in ~15 s.';}catch(e){$('msg').textContent='Reboot request failed: '+e;$('reboot').disabled=false;}}
+async function savePinnedFlight(){const v=$('pinned_flight').value.trim().toUpperCase();try{const r=await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pinned_flight:v})});$('pinnedMsg').textContent=r.ok?(v?'Saved — fetching now…':'Cleared.'):'Failed.';setTimeout(()=>$('pinnedMsg').textContent='',5000);}catch(e){$('pinnedMsg').textContent='Error.';}}
 function calcMapZoom(rKm,cLat,w,h){var cosLat=Math.max(0.01,Math.cos(cLat*Math.PI/180));var minDim=Math.min(w,Math.max(h-20,0));return Math.min(15,Math.max(8,Math.floor(Math.log2(minDim*40075*cosLat/(256*2.5*rKm)))));}
 function llToXY(lat,lon,cLat,cLon,zoom,w,h){var scale=256*Math.pow(2,zoom);var dx=(lon-cLon)*scale/360;var mLat=Math.log(Math.tan(Math.PI/4+lat*Math.PI/360));var mCtr=Math.log(Math.tan(Math.PI/4+cLat*Math.PI/360));return {x:w/2+dx,y:h/2-(mLat-mCtr)*scale/(2*Math.PI)};}
 function updateMapOverlay(imgEl,svgEl){
@@ -276,6 +287,7 @@ static void addOptionalDouble(JsonObject object, const char *key, double value)
 static void addFlight(JsonObject object, const FlightInfo &flight)
 {
   object["enriched"] = flight.enriched;
+  object["pinned"]   = flight.pinned;
   // ident: preferred display callsign — mirrors CYDDisplay::resolveCallsign() so the
   // WebUI shows the same form as the TFT (e.g. VA804 — IATA — rather than VOZ804 — ICAO).
   // ident_icao and ident_iata remain available below for callers that need the raw values.
@@ -325,6 +337,7 @@ void WebUIServer::begin(const std::vector<FlightInfo> *flights, CYDDisplay *disp
   _server.on("/", HTTP_GET, [this] { onRoot(); });
   _server.on("/api/config", HTTP_GET, [this] { onGetConfig(); });
   _server.on("/api/config", HTTP_POST, [this] { onPostConfig(); });
+  _server.on("/api/reboot", HTTP_POST, [this] { onReboot(); });
   _server.on("/api/live", HTTP_GET, [this] { onGetLive(); });
   _server.on("/api/logo", HTTP_GET, [this] { onGetLogo(); });
   _server.on("/api/fetchmap",   HTTP_POST, [this] { onFetchMap(); });
@@ -659,7 +672,7 @@ void WebUIServer::onGetScreenshot()
 
 void WebUIServer::onGetConfig()
 {
-  DynamicJsonDocument doc(640);
+  DynamicJsonDocument doc(768);
   doc["lat"] = RuntimeConfig::centerLat();
   doc["lon"] = RuntimeConfig::centerLon();
   doc["radius_km"] = RuntimeConfig::radiusKm();
@@ -678,7 +691,8 @@ void WebUIServer::onGetConfig()
   }
   doc["opensky_configured"] =
       RuntimeConfig::openskyClientId().length() && RuntimeConfig::openskyClientSecret().length();
-  doc["aero_configured"] = RuntimeConfig::aeroApiKey().length() > 0;
+  doc["aero_configured"]   = RuntimeConfig::aeroApiKey().length() > 0;
+  doc["pinned_flight"]     = RuntimeConfig::pinnedFlightNumber();
 
   String out;
   serializeJson(doc, out);
@@ -727,11 +741,40 @@ void WebUIServer::onPostConfig()
   if (doc.containsKey("osky_id")) RuntimeConfig::setOpenskyClientId(doc["osky_id"].as<String>());
   if (doc.containsKey("osky_sec")) RuntimeConfig::setOpenskyClientSecret(doc["osky_sec"].as<String>());
   if (doc.containsKey("aero_key")) RuntimeConfig::setAeroApiKey(doc["aero_key"].as<String>());
+  if (doc.containsKey("pinned_flight"))
+  {
+    String pf = doc["pinned_flight"].as<String>();
+    pf.trim();
+    pf.toUpperCase();
+    RuntimeConfig::setPinnedFlightNumber(pf);
+    // Signal the main loop to act immediately — set a new pin (fetch + placeholder)
+    // or clear an existing one (strip the stale card without delay).
+    _pendingForceFetch = true;
+  }
 
   RuntimeConfig::save();
   _server.send(200, "application/json", "{\"ok\":true}");
-  DBG_INFO("WebUI: config saved - reboot scheduled");
-  _pendingReboot = true;
+
+  // All settings apply live — no reboot. The main loop reads RuntimeConfig fresh
+  // each cycle; these flags tell it to apply changes that need an explicit action
+  // (backlight write, OAuth token refresh) and to refresh promptly rather than
+  // waiting for the next fetch interval.
+  if (doc.containsKey("osky_id") || doc.containsKey("osky_sec"))
+    _pendingReauth = true; // creds changed — drop cached OpenSky token
+
+  // Any non-pinned change applies live (brightness, label colour, location, timing).
+  const bool onlyPinnedFlight = doc.size() == 1 && doc.containsKey("pinned_flight");
+  if (!onlyPinnedFlight)
+    _pendingApply = true;
+
+  DBG_INFO("WebUI: config saved (live apply, no reboot)");
+}
+
+void WebUIServer::onReboot()
+{
+  _server.send(200, "application/json", "{\"ok\":true}");
+  DBG_INFO("WebUI: reboot requested by user");
+  _pendingReboot = true; // main loop reboots after a short flush delay
 }
 
 void WebUIServer::onGetLive()
@@ -744,11 +787,14 @@ void WebUIServer::onGetLive()
   // is the radar map card. Mirror that exact logic here so the WebUI knows which
   // slot is currently on the TFT (flight N or the map). Without the +1 the modulo
   // collapses the map slot back to flight #0 and the WebUI never sees the map.
+  // The map slot is only present when at least one flight has a plottable
+  // position — mirror CYDDisplay::displayFlights() exactly (anyFlightLocatable).
   const size_t flightCount = _flights ? _flights->size() : 0;
-  const size_t totalSlots  = flightCount + 1;
+  const bool   hasMap      = _flights && anyFlightLocatable(*_flights);
+  const size_t totalSlots  = flightCount + (hasMap ? 1 : 0);
   const size_t rawIdx      = _display ? _display->currentFlightIndex() : 0;
   const size_t slotIdx     = totalSlots ? rawIdx % totalSlots : 0;
-  const bool   isMap       = flightCount && (slotIdx == flightCount);
+  const bool   isMap       = hasMap && (slotIdx == flightCount);
   screen["total"] = flightCount;
   screen["index"] = isMap ? flightCount : slotIdx;
   screen["kind"]  = isMap ? "map" : "flight";
