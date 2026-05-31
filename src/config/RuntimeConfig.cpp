@@ -22,6 +22,7 @@ static uint16_t s_labelColor;   // RGB565 — flight-label colour on both maps (
 static String   s_openskyId;
 static String   s_openskySecret;
 static String   s_aeroApiKey;
+static String   s_pinnedFlightNum;
 
 void RuntimeConfig::load()
 {
@@ -38,9 +39,10 @@ void RuntimeConfig::load()
   s_labelColor = p.getUShort("lbl_col",    UserConfiguration::COLOR_MAP_LABEL);
 
   // Credential fallback: NVS value → compile-time secret → empty
-  s_openskyId     = p.getString("osky_id",  APIConfiguration::OPENSKY_CLIENT_ID);
-  s_openskySecret = p.getString("osky_sec", APIConfiguration::OPENSKY_CLIENT_SECRET);
-  s_aeroApiKey    = p.getString("aero_key", APIConfiguration::AEROAPI_KEY);
+  s_openskyId       = p.getString("osky_id",    APIConfiguration::OPENSKY_CLIENT_ID);
+  s_openskySecret   = p.getString("osky_sec",   APIConfiguration::OPENSKY_CLIENT_SECRET);
+  s_aeroApiKey      = p.getString("aero_key",   APIConfiguration::AEROAPI_KEY);
+  s_pinnedFlightNum = p.getString("pinned_flt", "");
 
   p.end();
 
@@ -64,9 +66,10 @@ void RuntimeConfig::save()
   p.putUInt  ("map_sec",   s_mapSec);
   p.putUChar ("brightness",s_brightness);
   p.putUShort("lbl_col",   s_labelColor);
-  p.putString("osky_id",   s_openskyId);
-  p.putString("osky_sec",  s_openskySecret);
-  p.putString("aero_key",  s_aeroApiKey);
+  p.putString("osky_id",    s_openskyId);
+  p.putString("osky_sec",   s_openskySecret);
+  p.putString("aero_key",   s_aeroApiKey);
+  p.putString("pinned_flt", s_pinnedFlightNum);
 
   p.end();
   DBG_INFO("RuntimeConfig saved to NVS");
@@ -84,6 +87,7 @@ uint16_t RuntimeConfig::labelColor()          { return s_labelColor; }
 String   RuntimeConfig::openskyClientId()     { return s_openskyId; }
 String   RuntimeConfig::openskyClientSecret() { return s_openskySecret; }
 String   RuntimeConfig::aeroApiKey()          { return s_aeroApiKey; }
+String   RuntimeConfig::pinnedFlightNumber()  { return s_pinnedFlightNum; }
 
 // ── Setters ──────────────────────────────────────────────────────────────────
 void RuntimeConfig::setCenterLat(double v)          { s_centerLat = v; }
@@ -97,3 +101,4 @@ void RuntimeConfig::setLabelColor(uint16_t v)       { s_labelColor = v; }
 void RuntimeConfig::setOpenskyClientId(const String &v)     { s_openskyId = v; }
 void RuntimeConfig::setOpenskyClientSecret(const String &v) { s_openskySecret = v; }
 void RuntimeConfig::setAeroApiKey(const String &v)          { s_aeroApiKey = v; }
+void RuntimeConfig::setPinnedFlightNumber(const String &v)  { s_pinnedFlightNum = v; }

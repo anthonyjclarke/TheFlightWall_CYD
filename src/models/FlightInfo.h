@@ -10,6 +10,9 @@ struct FlightInfo
     // True when the live state was matched to a current AeroAPI flight record.
     bool enriched = false;
 
+    // True when this card was pinned by the user (nominated via WebUI config).
+    bool pinned = false;
+
     // Flight identifiers
     String ident;
     String ident_icao;
@@ -61,3 +64,16 @@ struct FlightInfo
     // Empty = logo not available; display falls back to colored airline text.
     String logo_path;
 };
+
+// True if at least one flight carries a plottable position. The radar map card
+// is only included in the display cycle when this holds — an empty map (e.g. a
+// lone pinned placeholder with no fix) is useless and just doubles map dwell.
+// CYDDisplay::displayFlights() and WebUIServer::onGetLive() MUST use this same
+// helper so their slot maths stay in lockstep (see CLAUDE.md slot-tracking parity).
+inline bool anyFlightLocatable(const std::vector<FlightInfo> &flights)
+{
+    for (const auto &f : flights)
+        if (!isnan(f.lat) && !isnan(f.lon))
+            return true;
+    return false;
+}

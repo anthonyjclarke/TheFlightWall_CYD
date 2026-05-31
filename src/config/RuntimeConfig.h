@@ -31,6 +31,9 @@ namespace RuntimeConfig
   String   openskyClientSecret();
   String   aeroApiKey();
 
+  // Pinned flight (empty = disabled)
+  String   pinnedFlightNumber();
+
   // Setters (in-memory only; call save() to persist)
   void setCenterLat(double v);
   void setCenterLon(double v);
@@ -43,4 +46,5 @@ namespace RuntimeConfig
   void setOpenskyClientId(const String &v);
   void setOpenskyClientSecret(const String &v);
   void setAeroApiKey(const String &v);
+  void setPinnedFlightNumber(const String &v);
 }

@@ -42,11 +42,38 @@ public:
   // Caller is responsible for rebooting after a short flush delay.
   bool shouldReboot() const { return _pendingReboot; }
 
+  // Returns true (and clears the flag) when the user updated the pinned
+  // flight via the WebUI, signalling the main loop to force an immediate fetch.
+  bool takePendingForceFetch() {
+    const bool v = _pendingForceFetch;
+    _pendingForceFetch = false;
+    return v;
+  }
+
+  // Returns true (and clears the flag) when live settings (location, timing,
+  // brightness, label colour, AeroAPI key) changed and should be applied now.
+  bool takePendingApply() {
+    const bool v = _pendingApply;
+    _pendingApply = false;
+    return v;
+  }
+
+  // Returns true (and clears the flag) when OpenSky credentials changed, so the
+  // cached OAuth token must be invalidated before the next fetch.
+  bool takePendingReauth() {
+    const bool v = _pendingReauth;
+    _pendingReauth = false;
+    return v;
+  }
+
 private:
   static constexpr size_t EVENT_CAPACITY = 50;
 
   WebServer _server{80};
-  bool      _pendingReboot = false;
+  bool      _pendingReboot      = false;
+  bool      _pendingForceFetch  = false;
+  bool      _pendingApply       = false;
+  bool      _pendingReauth      = false;
   const std::vector<FlightInfo> *_flights = nullptr;
   CYDDisplay                    *_display = nullptr;
   String _events[EVENT_CAPACITY];
@@ -63,6 +90,7 @@ private:
   void onRoot();
   void onGetConfig();
   void onPostConfig();
+  void onReboot();
   void onGetLive();
   void onGetLogo();
   void onFetchMap();

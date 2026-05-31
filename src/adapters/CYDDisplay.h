@@ -20,6 +20,10 @@ public:
     void showLoading()                                   override;
     void showFetchStatus(const char *phase);
 
+    // Call before switching display content (clear, message, loading) so the
+    // next displayFlights() call re-renders even if the slot key is unchanged.
+    void resetRenderState();
+
     // Draws /splash.jpg from LittleFS at (0,0). Returns false if the file
     // is missing or decode fails — caller may then fall back to a text
     // banner. Re-uses the TJpgDec setup done in initialize().
@@ -28,6 +32,9 @@ public:
     size_t currentFlightIndex() const { return _currentFlightIndex; }
     uint16_t width() const { return _w; }
     uint16_t height() const { return _h; }
+
+    // Set backlight brightness (0–255) at runtime via the LEDC channel.
+    void setBrightness(uint8_t level);
 
     // Pass-through to TFT_eSPI::readRectRGB — reads a rectangle of pixels from the
     // live framebuffer as packed RGB888 (3 bytes per pixel, R/G/B order). On ILI9341
@@ -57,7 +64,6 @@ private:
     void drawFlightCard(const FlightInfo &f, size_t idx, size_t total);
     void drawProgressBar(const FlightInfo &f, time_t now);
     String renderKey(const FlightInfo &f) const;
-    void resetRenderState();
 
     // Resolve helpers
     String resolveAirline(const FlightInfo &f) const;

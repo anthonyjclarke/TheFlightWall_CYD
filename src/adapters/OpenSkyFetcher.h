@@ -21,6 +21,10 @@ public:
 
     bool ensureAuthenticated(bool forceRefresh = false);
 
+    // Drop the cached OAuth token so the next fetch re-authenticates. Call after
+    // OpenSky credentials change at runtime so new creds take effect immediately.
+    void invalidateToken() { m_accessToken = ""; m_tokenExpiryMs = 0; }
+
     const String& lastError()      const { return m_lastError; }
     int           creditsRemaining() const { return m_creditsRemaining; }
 

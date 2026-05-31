@@ -32,4 +32,4 @@
 //   • "1.3.0"       tagged release on main
 // ─────────────────────────────────────────────────────────────────────────────
 
-#define FW_VERSION_STR "1.3.0"
+#define FW_VERSION_STR "1.4.0"
