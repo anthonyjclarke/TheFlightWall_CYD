@@ -37,7 +37,7 @@ PlatformIO firmware for the CYD (TFT) build target of [TheFlightWall OSS](https:
 - **Runtime configuration** — location, radius, fetch interval, display timing, brightness, label colour and API credentials persisted to NVS via the dashboard; **all settings apply live with no reboot** (a separate *Reboot Device* button is retained for WiFi reset / recovery); no reflash needed
 - **WiFiManager provisioning** — captive-portal AP on first boot; credentials stored in NVS
 
-Current release: **v1.4.0** (01 June 2026) · canonical version: `FW_VERSION_STR` in `src/config/Version.h`
+Current dev version: **v1.5.0-dev** · last release: **v1.4.0** (01 June 2026) · canonical version: `FW_VERSION_STR` in `src/config/Version.h`
 
 > ![Hero shot of CYD running FlightWall](images/hero.png)
 > 
