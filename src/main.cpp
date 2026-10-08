@@ -17,6 +17,8 @@
 #include "CYDDisplay.h"
 #include "MapProvider.h"
 #include "WebUIServer.h"
+#include "improv_setup.h"
+#include <esp_ota_ops.h>
 
 static OpenSkyFetcher    g_openSky;
 static AeroAPIFetcher    g_aeroApi;
@@ -62,7 +64,21 @@ static void initWiFi()
   wm.setConfigPortalTimeout(180);
   wm.setSaveConnectTimeout(20);
   g_display.showFetchStatus("Connecting WiFi...");
-  if (wm.autoConnect(HardwareConfiguration::WIFI_AP_NAME))
+#if IMPROV_SETUP_ENABLED
+  // Non-blocking portal so Improv-Serial (browser installer) is serviced while
+  // the AP is up. The 180 s portal timeout still applies via process().
+  wm.setConfigPortalBlocking(false);
+#endif
+  bool connected = wm.autoConnect(HardwareConfiguration::WIFI_AP_NAME);
+#if IMPROV_SETUP_ENABLED
+  while (!connected && wm.getConfigPortalActive())
+  {
+    if (wm.process()) { connected = true; break; }
+    improvTick(); // restarts once Improv credentials connect
+    delay(5);
+  }
+#endif
+  if (connected)
   {
     DBG_INFO("WiFi connected: %s", WiFi.localIP().toString().c_str());
     const String ok = "WiFi OK: " + WiFi.localIP().toString();
@@ -85,6 +101,7 @@ static void initTime()
   const unsigned long start = millis();
   while (t < 1000000000UL && millis() - start < 10000)
   {
+    improvTick();
     delay(100);
     t = time(nullptr);
   }
@@ -97,8 +114,10 @@ static void initTime()
 void setup()
 {
   Serial.begin(115200);
+  improvBegin(); // before WiFi: answers the browser installer on every boot
   delay(200); // settle before initialising peripherals
   DBG_INFO("FlightWall CYD firmware v%s booting", FW_VERSION_STR);
+  DBG_INFO("Running from %s", esp_ota_get_running_partition()->label);
   RuntimeConfig::load();
   initFilesystem();
   initDisplay();
@@ -116,6 +135,7 @@ void setup()
       auto *c = static_cast<FetchCtx *>(ctx);
       c->web->setBusy(phase && phase[0] != '\0', phase);
       c->web->pump();
+      improvTick(); // fetch cycles block for seconds; keep Improv answering
       c->disp->showFetchStatus(phase);
     },
     &g_fetchCtx);
@@ -259,6 +279,8 @@ static void promoteOrFetchPinned(std::vector<FlightInfo> &flights)
 
 void loop()
 {
+  improvTick(); // browser installer: must answer within 1.5 s of Connect
+
   // ── WebUI / reboot handling ────────────────────────────────────────────────
   g_webUI.handle();
 
@@ -409,12 +431,14 @@ void loop()
     // else: fetch returned nothing but we still have last-good g_flights — keep showing it.
 
     // Promote or fetch the user-configured pinned flight (no-op if not set).
+    improvTick();
     g_webUI.setBusy(true, "Pinned flight");
     promoteOrFetchPinned(g_flights);
     g_webUI.setBusy(false, "");
 
     g_webUI.recordFetch(states, flights, enriched);
     // Pre-fetch / validate the map cache — returns immediately on a 24-hour cache hit.
+    improvTick();
     g_display.showFetchStatus("Map cache");
     g_webUI.setBusy(true, "Map cache");
     MapProvider::ensureMapCached(g_display.width(), g_display.height());
