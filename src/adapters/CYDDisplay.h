@@ -25,8 +25,9 @@ public:
     void resetRenderState();
 
     // Draws /splash.jpg from LittleFS at (0,0). Returns false if the file
-    // is missing or decode fails — caller may then fall back to a text
-    // banner. Re-uses the TJpgDec setup done in initialize().
+    // is missing or decode fails; a "FlightWall" text banner is drawn
+    // instead (checked once per boot). Re-uses the TJpgDec setup done in
+    // initialize().
     bool showSplash();
 
     size_t currentFlightIndex() const { return _currentFlightIndex; }
@@ -60,6 +61,7 @@ private:
     String        _lastStatusMessage; // tracks displayMessage / showLoading text to avoid flicker
     String        _lastFetchPhase;   // tracks fetch status bar to avoid redundant redraws
     bool          _splashOnScreen = false; // splash idempotence guard — set by showSplash(), cleared by every full-screen draw
+    bool          _splashMissing  = false; // no usable /splash.jpg (e.g. web-installer image) — text banner stands in
 
     void drawFlightCard(const FlightInfo &f, size_t idx, size_t total);
     void drawProgressBar(const FlightInfo &f, time_t now);

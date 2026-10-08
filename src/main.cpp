@@ -51,11 +51,9 @@ static void initFilesystem()
 static void initDisplay()
 {
   g_display.initialize();
-  // Splash JPEG from LittleFS replaces the legacy "FlightWall" status text.
-  // If the splash is missing (LittleFS image not flashed) fall back to the
-  // text banner so the device never boots to a blank screen.
-  if (!g_display.showSplash())
-    g_display.displayMessage("FlightWall");
+  // Splash JPEG from LittleFS. If it is missing (LittleFS image not flashed,
+  // as with the web installer) showSplash() draws a "FlightWall" text banner.
+  g_display.showSplash();
 }
 
 static void initWiFi()
