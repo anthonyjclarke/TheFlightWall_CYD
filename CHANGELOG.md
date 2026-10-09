@@ -22,6 +22,22 @@ Prioritised by impact vs. complexity. Items are ordered — start at the top.
 
 ---
 
+## [1.5.0] — in progress on dev
+
+### Added
+- **Browser installer** — `.github/workflows/firmware.yml` calls the shared [cyd-web-installer](https://github.com/anthonyjclarke/cyd-web-installer) workflow. Every push builds both boards; a `v*` tag on `main` publishes the release (`*-firmware.bin`, `*-merged.bin`, `SHA256SUMS.txt`) and the ESP Web Tools installer on GitHub Pages. `tools/merge_bin.py` writes the flash parts; both envs carry `custom_installer_label`.
+- **Improv-Serial, always on** — vendored `lib/ImprovWiFi` (cyd-web-installer 1.0.1) and `src/network/improv_setup.*`. The installer can set WiFi over USB and offers **Update** (no erase) on a board already running this firmware. The WiFiManager portal now runs non-blocking so Improv is serviced while the AP is up.
+- Boot log line `Running from app0/app1`.
+
+### Changed
+- Platform pinned to `espressif32@6.12.0` (arduino-esp32 2.0.17); unpinned now resolves to an Arduino 3.x build that fails.
+- `FIRMWARE_VERSION`, `PROJECT_NAME`, upstream credit and `AP_NAME` live in `include/config.h`; `FW_VERSION_STR` in `Version.h` is now an alias.
+- `release.yml` replaced by `firmware.yml`. Release notes now link to this file instead of quoting it.
+
+### Fixed
+- Missing `/splash.jpg` (installer images ship no LittleFS image): the empty state no longer checks LittleFS and logs a warning on every loop pass, and a "FlightWall" text banner replaces a stale flight card.
+- Improv replies start on a new line (cyd-web-installer 1.0.1), so ESP Web Tools' line-based parser no longer drops them after serial noise on port open — Connect reliably offers **Update**.
+
 ## [1.4.0] 01-06-2026
 
 ### Added
