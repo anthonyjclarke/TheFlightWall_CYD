@@ -22,7 +22,7 @@ Prioritised by impact vs. complexity. Items are ordered — start at the top.
 
 ---
 
-## [1.5.0] — in progress on dev
+## [1.5.0] 10-10-2026
 
 ### Added
 - **Browser installer** — `.github/workflows/firmware.yml` calls the shared [cyd-web-installer](https://github.com/anthonyjclarke/cyd-web-installer) workflow. Every push builds both boards; a `v*` tag on `main` publishes the release (`*-firmware.bin`, `*-merged.bin`, `SHA256SUMS.txt`) and the ESP Web Tools installer on GitHub Pages. `tools/merge_bin.py` writes the flash parts; both envs carry `custom_installer_label`.
