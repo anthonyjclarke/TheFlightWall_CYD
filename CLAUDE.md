@@ -1,6 +1,6 @@
 # FlightWall — CYD Edition
 
-ESP32 flight tracker displaying live nearby aircraft on a CYD TFT and embedded web dashboard. OpenSky ADS-B state vectors (OAuth2) → AeroAPI enrichment → FlightWall CDN name lookup → cycling flight card. Current dev version: 1.5.0-dev (last released: 1.4.0). **Canonical version macro: `FW_VERSION_STR` in [`src/config/Version.h`](src/config/Version.h)** — bumping it there propagates to the WebUI title/brand badge and the boot serial banner. Markdown docs (this file, README.md, CHANGELOG.md) stay manually-maintained.
+ESP32 flight tracker displaying live nearby aircraft on a CYD TFT and embedded web dashboard. OpenSky ADS-B state vectors (OAuth2) → AeroAPI enrichment → FlightWall CDN name lookup → cycling flight card. Current dev version: 1.5.0-dev (last released: 1.4.0). **Canonical version: `FIRMWARE_VERSION` in [`include/config.h`](include/config.h)** (`FW_VERSION_STR` in `src/config/Version.h` is an alias; both must stay `#define` string literals because the WebUI PROGMEM HTML concatenates them) — bumping it propagates to the WebUI title/brand badge and the boot serial banner. Markdown docs (this file, README.md, CHANGELOG.md) stay manually-maintained.
 
 ---
 
@@ -78,17 +78,17 @@ NVS keys: `ctr_lat`, `ctr_lon`, `radius_km`, `fetch_sec`, `cycle_sec`, `map_sec`
 
 ## Build notes
 
-- All source lives under `src/`: `src/adapters/`, `src/config/`, `src/core/`, `src/interfaces/`, `src/models/`, `src/utils/`. Only `include/debug.h` and `include/secrets.h` sit outside `src/`. Headers use flat `#include "FileName.h"` — no subdirectory prefix — because every `src/` subdirectory has an explicit `-I` entry in `build_flags`.
+- All source lives under `src/`: `src/adapters/`, `src/config/`, `src/core/`, `src/interfaces/`, `src/models/`, `src/utils/`. Only `include/config.h`, `include/debug.h`, `include/secrets.h` and `lib/ImprovWiFi/` sit outside `src/`. Headers use flat `#include "FileName.h"` — no subdirectory prefix — because every `src/` subdirectory has an explicit `-I` entry in `build_flags`.
 - OpenSky and AeroAPI HTTP calls all set `http.setTimeout(15000)`. The default 5 s timeout produces `-11 HTTPC_ERROR_READ_TIMEOUT` on slow OpenSky `/states/all` responses. Do not drop these timeouts.
 - `build_src_filter` paths are now relative to `src/` without `../` prefix (all `.cpp` files are inside `src/`). Add new `.cpp` files to the explicit list; do not use wildcards.
 - Arduino ESP32 3.x does not auto-expose framework library headers — each one needs an explicit `-I $PROJECT_PACKAGES_DIR/framework-arduinoespressif32/libraries/{LibName}/src` entry in `[cyd_common]` build_flags. Current entries: `FS/src`, `LittleFS/src`, `Network/src`, `HTTPClient/src`, `NetworkClientSecure/src`, `WebServer/src`.
 - `g_states` in `main.cpp` is retained for fetch-cycle telemetry supplied to `WebUIServer::recordFetch()`; the TFT renders from `g_flights`.
 
-## Release process
+## Web installer and releases
 
-When the user asks to push a release that has been merged to `main`:
-
-1. Bump `FW_VERSION_STR` in `src/config/Version.h` to the clean version (e.g. `"1.3.0"`), update `README.md` and `CHANGELOG.md`, commit.
-2. `git tag v1.3.0 && git push origin main --tags`
-
-Pushing the tag triggers `.github/workflows/release.yml`, which builds both firmware targets and creates a GitHub Release with the CHANGELOG notes and both `.bin` files attached. The shields.io release badge on README.md updates automatically from the GitHub Releases API. No manual `gh release create` step needed.
+- Release images come only from CI (`.github/workflows/firmware.yml`, shared cyd-web-installer workflow) on a `v*` tag on `main`; never publish a local build — it compiles `secrets.h`.
+- Never put `firmware-merged.bin` in a manifest (it fills NVS with 0xFF). `PROJECT_NAME` and `partitions_custom.csv` are frozen; renaming turns Update into Install.
+- Never put Improv back in `lib_deps` — `lib/ImprovWiFi` is the patched copy-in. `improvTick()` runs from a core-0 task every 20 ms because fetch cycles block for seconds; keep it there.
+- Installer images have no LittleFS image and no API keys: `showSplash()` must keep its once-per-boot text-banner fallback, and every key must stay enterable in the WebUI.
+- Release: set `FIRMWARE_VERSION` without suffix, date the CHANGELOG, merge `dev` → `main`; the user pushes the tag. Details: `docs/WEB_INSTALLER.md`.
+- Before the next release, clear *Tests owed* in `docs/WEB_INSTALLER.md` (RUNBOOK 5b).

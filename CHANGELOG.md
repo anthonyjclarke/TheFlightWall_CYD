@@ -39,6 +39,11 @@ Prioritised by impact vs. complexity. Items are ordered — start at the top.
 - Missing `/splash.jpg` (installer images ship no LittleFS image): the empty state no longer checks LittleFS and logs a warning on every loop pass, and a "FlightWall" text banner replaces a stale flight card.
 - Improv replies start on a new line (cyd-web-installer 1.0.1), so ESP Web Tools' line-based parser no longer drops them after serial noise on port open — Connect reliably offers **Update**.
 
+### Documentation
+- README **Install** section: browser installer steps, bring-your-own API keys (entered in the dashboard), Update vs Install for boards on 1.4.0, release assets. API setup steps now say keys go in the dashboard, with `secrets.h` as the source-build default; Appendix B warns never to publish a local build.
+- `docs/WEB_INSTALLER.md`: project specifics, RUNBOOK 5a smoke test (passed 10-10-2026 on a 2.8″) and the *Tests owed* list.
+- `CLAUDE.md`: canonical version now `FIRMWARE_VERSION` in `include/config.h`; *Web installer and releases* rules replace the old `release.yml` process.
+
 ## [1.4.0] 01-06-2026
 
 ### Added
