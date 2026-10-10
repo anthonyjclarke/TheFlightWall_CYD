@@ -116,6 +116,19 @@ MAC tail. That comes from the shared `improv_setup.cpp` and is cosmetic.
    `/api/config` still reports brightness 150 and the dashboard title reads
    `v1.5.0`.
 
+## 4.0″ board – install from the live page (case 1)
+
+**Passed 11-10-2026** – 4.0″ ESP32-32E (LCDwiki E32R40T), ESP32-D0WD-V3
+rev 3.1, MAC `a4:f0:0f:68:95:5c`, installed from the live v1.5.0 page. This
+board was listed as a 3.5″ ESP32-3248S035R until 1.5.1; the image and env
+(`cyd_480x320`) are unchanged.
+
+The boot log shows `v1.5.0`, `Running from app0`, `CYDDisplay init: 480x320
+px`, WiFi joined (`192.168.1.82`) and NTP synced, with no crash. Settings
+were at factory defaults and there was no splash, as on a fresh install; the
+erase itself wasn't separately confirmed. The Improv name is
+`FlightWall-F0A4`.
+
 ---
 
 ## Tests owed
@@ -123,7 +136,7 @@ MAC tail. That comes from the shared `improv_setup.cpp` and is cosmetic.
 Smoke-tested only. Run these on the next real work on this project, or before
 the next release, and tick them off with date and board MAC.
 
-- [ ] Case 1 – fresh install, erased, on the 4.0″ ESP32-32E (E32R40T)
+- [x] Case 1 – fresh install on the 4.0″ ESP32-32E (E32R40T) – 11-10-2026, `a4:f0:0f:68:95:5c`
 - [x] Case 2 – Update on a provisioned board (settings kept) – 10-10-2026, `b0:cb:d8:da:ae:8c`
 - [x] Case 3 – Update from `app1` – not applicable, no OTA
 - [ ] Case 4 – wrong board image, then reinstall (2.8″ ↔ 4.0″)
