@@ -84,9 +84,10 @@ bool MapProvider::ensureMapCached(uint16_t screenW, uint16_t screenH)
         return true;
     }
 
-    if (strlen(APIConfiguration::MAPS_API_KEY) == 0)
+    const String mapsKey = RuntimeConfig::mapsApiKey();
+    if (mapsKey.length() == 0)
     {
-        DBG_WARN("MapProvider: no API key — add SECRET_MAPS_API_KEY to secrets.h");
+        DBG_WARN("MapProvider: no Google Maps API key — enter one in the web UI");
         return false;
     }
 
@@ -106,7 +107,7 @@ bool MapProvider::ensureMapCached(uint16_t screenW, uint16_t screenH)
         + "%26size="  + screenW + "x" + screenH
         + "%26maptype=roadmap"
         + "%26format=jpg"
-        + "%26key="   + APIConfiguration::MAPS_API_KEY;
+        + "%26key="   + mapsKey;
     String url = "https://images.weserv.nl/?url=" + gmapsPath + "&output=jpg";
 
     DBG_INFO("MapProvider: fetching %ux%u zoom=%d (via weserv.nl)", screenW, screenH, zoom);

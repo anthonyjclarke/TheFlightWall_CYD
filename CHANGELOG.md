@@ -28,6 +28,7 @@ Prioritised by impact vs. complexity. Items are ordered — start at the top.
 - **Browser installer** — `.github/workflows/firmware.yml` calls the shared [cyd-web-installer](https://github.com/anthonyjclarke/cyd-web-installer) workflow. Every push builds both boards; a `v*` tag on `main` publishes the release (`*-firmware.bin`, `*-merged.bin`, `SHA256SUMS.txt`) and the ESP Web Tools installer on GitHub Pages. `tools/merge_bin.py` writes the flash parts; both envs carry `custom_installer_label`.
 - **Improv-Serial, always on** — vendored `lib/ImprovWiFi` (cyd-web-installer 1.0.1) and `src/network/improv_setup.*`. The installer can set WiFi over USB and offers **Update** (no erase) on a board already running this firmware. Improv is serviced every 20 ms from a small FreeRTOS task on core 0, because `setup()` and each fetch cycle (HTTPS calls of up to 15 s) block for seconds and ESP Web Tools waits only 1.5 s for a reply.
 - Boot log line `Running from app0/app1`.
+- **Google Maps key in the web UI** — a write-only *Google Maps Key* field (with *Clear*) in Device Configuration, stored in NVS as `maps_key` and applied live. Installer images carry no `secrets.h`, so the map card background needs a user-entered key, as OpenSky and AeroAPI already did. `SECRET_MAPS_API_KEY` remains the compile-time default.
 
 ### Changed
 - Platform pinned to `espressif32@6.12.0` (arduino-esp32 2.0.17); unpinned now resolves to an Arduino 3.x build that fails.

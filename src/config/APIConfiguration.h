@@ -48,7 +48,8 @@ namespace APIConfiguration
 
     // Google Maps Static API — used for the map card background image.
     // Obtain a key at https://console.cloud.google.com/ → Maps Static API.
-    // Add SECRET_MAPS_API_KEY to include/secrets.h (gitignored).
+    // Enter the key in the web UI (NVS "maps_key"); SECRET_MAPS_API_KEY in
+    // include/secrets.h is only the compile-time default.
     static constexpr const char *MAPS_STATIC_URL = "https://maps.googleapis.com/maps/api/staticmap";
 #ifdef SECRET_MAPS_API_KEY
     static const char *MAPS_API_KEY = SECRET_MAPS_API_KEY;
