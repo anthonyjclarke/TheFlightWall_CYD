@@ -100,6 +100,22 @@ Boot log (after the dialog was closed):
 The Improv device name ends in `CBB0`, from the Espressif OUI rather than the
 MAC tail. That comes from the shared `improv_setup.cpp` and is cosmetic.
 
+## Release check – Update from the live page (case 2)
+
+**Passed 10-10-2026** on the same board (MAC `b0:cb:d8:da:ae:8c`), live page
+<https://anthonyjclarke.github.io/TheFlightWall_CYD/> serving v1.5.0 (tag run
+38028710087). The release has both boards' `*-firmware.bin` and
+`*-merged.bin` plus `SHA256SUMS.txt`; every manifest lists four parts.
+
+1. The board ran the `1.5.0-dev` preview from the smoke test. Brightness was
+   set from 200 to 150 through `POST /api/config` as a marker.
+2. Connect on the live page offered **Update TheFlightWall_CYD**, with no
+   erase question, and the Update completed.
+3. After the Update the boot log shows `v1.5.0`, `Running from app0` and
+   `bright=150`. WiFi rejoined from saved credentials and NTP synced.
+   `/api/config` still reports brightness 150 and the dashboard title reads
+   `v1.5.0`.
+
 ---
 
 ## Tests owed
@@ -108,7 +124,7 @@ Smoke-tested only. Run these on the next real work on this project, or before
 the next release, and tick them off with date and board MAC.
 
 - [ ] Case 1 – fresh install, erased, on the 3.5″ ESP32-3248S035R
-- [ ] Case 2 – Update on a provisioned board (settings kept)
+- [x] Case 2 – Update on a provisioned board (settings kept) – 10-10-2026, `b0:cb:d8:da:ae:8c`
 - [x] Case 3 – Update from `app1` – not applicable, no OTA
 - [ ] Case 4 – wrong board image, then reinstall (2.8″ ↔ 3.5″)
 - [ ] Keys entered in the dashboard: OpenSky fetch, AeroAPI, Maps background
