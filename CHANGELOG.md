@@ -8,6 +8,10 @@ Outstanding features and code optimisations are tracked separately in [TODO.md](
 
 Prioritised by impact vs. complexity. Items are ordered — start at the top.
 
+### Fixed
+
+- **Improv device name** — the installer dialog now names the board from the MAC's last two bytes (e.g. `FlightWall-AE8C`) instead of the Espressif vendor prefix (`FlightWall-CBB0`), so two boards no longer share a name. Synced `src/network/improv_setup.cpp` with cyd-web-installer 1.0.3.
+
 ### Planned
 
 - **[P1] Ambient light auto-brightness (LDR)** — the CYD has a light-dependent resistor on GPIO 34 (ADC input-only). Sample it on a 5 s `millis()` interval, apply a 5-sample rolling average, and map the result to the backlight brightness range via `CYDDisplay::setBrightness()`. No user configuration required for basic operation; optionally expose min/max brightness bounds in the WebUI Device Configuration panel and persist to NVS. This replaces the manual brightness slider as the primary control at runtime (slider becomes the max-brightness cap). Completely non-blocking; all arithmetic fits in one file (`CYDDisplay.cpp` or `main.cpp`).
