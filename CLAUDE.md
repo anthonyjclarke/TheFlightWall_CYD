@@ -1,6 +1,6 @@
 # FlightWall — CYD Edition
 
-ESP32 flight tracker displaying live nearby aircraft on a CYD TFT and embedded web dashboard. OpenSky ADS-B state vectors (OAuth2) → AeroAPI enrichment → FlightWall CDN name lookup → cycling flight card. Current version: 1.5.1 (released). **Canonical version: `FIRMWARE_VERSION` in [`include/config.h`](include/config.h)** (`FW_VERSION_STR` in `src/config/Version.h` is an alias; both must stay `#define` string literals because the WebUI PROGMEM HTML concatenates them) — bumping it propagates to the WebUI title/brand badge and the boot serial banner. Markdown docs (this file, README.md, CHANGELOG.md) stay manually-maintained.
+ESP32 flight tracker displaying live nearby aircraft on a CYD TFT and embedded web dashboard. OpenSky ADS-B state vectors (OAuth2) → AeroAPI enrichment → FlightWall CDN name lookup → cycling flight card. Current dev version: 1.6.0-dev (last released: 1.5.1). **Canonical version: `FIRMWARE_VERSION` in [`include/config.h`](include/config.h)** (`FW_VERSION_STR` in `src/config/Version.h` is an alias; both must stay `#define` string literals because the WebUI PROGMEM HTML concatenates them) — bumping it propagates to the WebUI title/brand badge and the boot serial banner. Markdown docs (this file, README.md, CHANGELOG.md) stay manually-maintained.
 
 ---
 

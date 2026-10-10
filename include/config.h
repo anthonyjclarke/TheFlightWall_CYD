@@ -15,7 +15,7 @@
 //   • "1.5.0"       tagged release on main (CI refuses a suffix on a tag)
 // ─────────────────────────────────────────────────────────────────────────────
 
-#define FIRMWARE_VERSION "1.5.1"
+#define FIRMWARE_VERSION "1.6.0-dev"
 #define PROJECT_NAME     "TheFlightWall_CYD"  // frozen: Improv + manifest name
 
 #define UPSTREAM_PROJECT  "TheFlightWall_OSS"
