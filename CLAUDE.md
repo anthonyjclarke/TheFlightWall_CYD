@@ -6,10 +6,12 @@ ESP32 flight tracker displaying live nearby aircraft on a CYD TFT and embedded w
 
 ## Hardware targets
 
-| Environment    | Board            | Driver  | Resolution | TFT_BL |
-|:---------------|:-----------------|:--------|:-----------|:-------|
-| `cyd_320x240`  | ESP32-2432S028R  | ILI9341 | 320 × 240  | GPIO 21 |
-| `cyd_480x320`  | ESP32-3248S035R  | ST7796  | 480 × 320  | GPIO 27 — **verify against your board revision** |
+| Environment    | Board                            | Driver  | Resolution | TFT_BL  |
+|:---------------|:---------------------------------|:--------|:-----------|:--------|
+| `cyd_320x240`  | 2.8″ ESP32-2432S028R             | ILI9341 | 320 × 240  | GPIO 21 |
+| `cyd_480x320`  | 4.0″ ESP32-32E (LCDwiki E32R40T) | ST7796  | 480 × 320  | GPIO 27 |
+
+The 4.0″ board is **not** the 3.5″ ESP32-3248S035R; its RGB LED red is GPIO 22, not 4. Verify `TFT_BL` against your board revision.
 
 Standard CYD SPI pins apply to both (MOSI=13, MISO=12, SCLK=14, CS=15, DC=2, RST=-1, TOUCH_CS=33). **MISO=12** is required for `/api/screenshot` framebuffer readback — without it `TFT_eSPI::readRectRGB()` reads a floating bus and returns all `0xFF` (all-white BMP). GPIO 12 is an ESP32 strapping pin (MTDI); usually safe because the ILI9341 tri-states MISO at boot, but revert if a specific board pulls it high and bootloops. `SPI_READ_FREQUENCY` is held at 6.25 MHz for read reliability on the CYD's unterminated MISO trace.
 

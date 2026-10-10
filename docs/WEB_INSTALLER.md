@@ -13,7 +13,7 @@ file records what is specific to this project and its hardware test results.
 |:--------------------|:-----------------------------------------------|
 | `PROJECT_NAME`      | `TheFlightWall_CYD` (frozen)                   |
 | Envs / boards       | `cyd_320x240` – 2.8″ ESP32-2432S028R           |
-|                     | `cyd_480x320` – 3.5″ ESP32-3248S035R           |
+|                     | `cyd_480x320` – 4.0″ ESP32-32E (E32R40T)       |
 | Version header      | `include/config.h` (`FW_VERSION_STR` aliases)  |
 | Platform            | `espressif32@6.12.0` (arduino-esp32 2.0.17)    |
 | Partitions          | `partitions_custom.csv`, app slot `0x1C0000`   |
@@ -58,7 +58,7 @@ settings, because the partition table is unchanged.
 | Build                                 | `firmware.bin`             |
 |:--------------------------------------|:---------------------------|
 | 1.5.0-dev baseline, 6.12.0 pinned     | 1,264,448 B / 1,271,152 B  |
-| 1.5.0-dev CI (`47e83c2`), 2.8″ / 3.5″ | 1,275,280 B / 1,281,904 B  |
+| 1.5.0-dev CI (`47e83c2`), 2.8″ / 4.0″ | 1,275,280 B / 1,281,904 B  |
 
 Both are about 70 % of the 1,835,008 B slot. The unpinned platform resolved
 to a pioarduino (arduino-esp32 3.x) build that no longer compiles.
@@ -123,8 +123,8 @@ MAC tail. That comes from the shared `improv_setup.cpp` and is cosmetic.
 Smoke-tested only. Run these on the next real work on this project, or before
 the next release, and tick them off with date and board MAC.
 
-- [ ] Case 1 – fresh install, erased, on the 3.5″ ESP32-3248S035R
+- [ ] Case 1 – fresh install, erased, on the 4.0″ ESP32-32E (E32R40T)
 - [x] Case 2 – Update on a provisioned board (settings kept) – 10-10-2026, `b0:cb:d8:da:ae:8c`
 - [x] Case 3 – Update from `app1` – not applicable, no OTA
-- [ ] Case 4 – wrong board image, then reinstall (2.8″ ↔ 3.5″)
+- [ ] Case 4 – wrong board image, then reinstall (2.8″ ↔ 4.0″)
 - [ ] Keys entered in the dashboard: OpenSky fetch, AeroAPI, Maps background

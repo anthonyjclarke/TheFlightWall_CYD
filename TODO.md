@@ -89,7 +89,7 @@ When an item ships, it should be moved to the relevant `## [x.y.z]` section in `
 - [ ] `RuntimeConfig::save` — write only changed keys to reduce NVS wear on configuration POSTs
 - [ ] `OpenSkyFetcher` token expiry uses `millis()` — survives ~49-day wrap by arithmetic but triggers an unnecessary refresh at wrap; switch to `time(nullptr)` after NTP sync
 - [ ] Watchdog — enable the task / interrupt watchdog and feed it from the main loop so a hung HTTP call resets rather than wedges
-- [ ] `cyd_480x320` build flags carry a "verify TFT_BL pin and SPI_FREQUENCY against your exact board revision" comment from initial bring-up; verify on actual ST7796 hardware and remove the warning
+- [ ] `cyd_480x320` build flags carry a "verify TFT_BL pin and SPI_FREQUENCY against your exact board revision" comment from initial bring-up; verify on the 4.0″ ESP32-32E (LCDwiki E32R40T) and remove the warning
 - [ ] Touch calibration — `TFT_eSPI`/XPT2046 calibration matrix should be persisted in NVS (`Preferences`) before touch features land
 - [ ] Encapsulate `g_flights` / `g_states` / `g_emptyMessage` globals behind a small `AppState` class to make ownership and threading expectations explicit
 - [ ] AeroAPI request budget (`MAX_AEROAPI_CALLS_PER_CYCLE = 10`) is compile-time; expose via `RuntimeConfig` and the WebUI for users on different paid tiers
