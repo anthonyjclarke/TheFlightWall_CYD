@@ -4,7 +4,7 @@ Outstanding features and code optimisations are tracked separately in [TODO.md](
 
 ---
 
-## [Unreleased] — building toward v1.5.0
+## [Unreleased] — building toward v1.6.0
 
 Prioritised by impact vs. complexity. Items are ordered — start at the top.
 
