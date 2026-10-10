@@ -62,21 +62,7 @@ static void initWiFi()
   wm.setConfigPortalTimeout(180);
   wm.setSaveConnectTimeout(20);
   g_display.showFetchStatus("Connecting WiFi...");
-#if IMPROV_SETUP_ENABLED
-  // Non-blocking portal so Improv-Serial (browser installer) is serviced while
-  // the AP is up. The 180 s portal timeout still applies via process().
-  wm.setConfigPortalBlocking(false);
-#endif
-  bool connected = wm.autoConnect(HardwareConfiguration::WIFI_AP_NAME);
-#if IMPROV_SETUP_ENABLED
-  while (!connected && wm.getConfigPortalActive())
-  {
-    if (wm.process()) { connected = true; break; }
-    improvTick(); // restarts once Improv credentials connect
-    delay(5);
-  }
-#endif
-  if (connected)
+  if (wm.autoConnect(HardwareConfiguration::WIFI_AP_NAME))
   {
     DBG_INFO("WiFi connected: %s", WiFi.localIP().toString().c_str());
     const String ok = "WiFi OK: " + WiFi.localIP().toString();
@@ -99,7 +85,6 @@ static void initTime()
   const unsigned long start = millis();
   while (t < 1000000000UL && millis() - start < 10000)
   {
-    improvTick();
     delay(100);
     t = time(nullptr);
   }
@@ -109,10 +94,34 @@ static void initTime()
     DBG_WARN("NTP sync timed out — flight status lines unavailable");
 }
 
+// ESP Web Tools must get an Improv reply within 1.5 s of Connect, but setup()
+// (splash hold, WiFi portal, NTP wait) and each fetch cycle (HTTPS calls of up
+// to 15 s each) block for seconds. A small task on core 0 services Improv every
+// 20 ms instead, so no other code has to tick it. Serial writes are
+// mutex-protected in the core.
+#if IMPROV_SETUP_ENABLED
+static void improvTask(void *)
+{
+  for (;;)
+  {
+    improvTick(); // restarts the device once new Improv credentials connect
+    vTaskDelay(pdMS_TO_TICKS(20));
+  }
+}
+#endif
+
+static void initImprov()
+{
+  improvBegin();
+#if IMPROV_SETUP_ENABLED
+  xTaskCreatePinnedToCore(improvTask, "improv", 4096, nullptr, 1, nullptr, 0);
+#endif
+}
+
 void setup()
 {
   Serial.begin(115200);
-  improvBegin(); // before WiFi: answers the browser installer on every boot
+  initImprov(); // before WiFi: answers the browser installer on every boot
   delay(200); // settle before initialising peripherals
   DBG_INFO("FlightWall CYD firmware v%s booting", FW_VERSION_STR);
   DBG_INFO("Running from %s", esp_ota_get_running_partition()->label);
@@ -133,7 +142,6 @@ void setup()
       auto *c = static_cast<FetchCtx *>(ctx);
       c->web->setBusy(phase && phase[0] != '\0', phase);
       c->web->pump();
-      improvTick(); // fetch cycles block for seconds; keep Improv answering
       c->disp->showFetchStatus(phase);
     },
     &g_fetchCtx);
@@ -277,8 +285,6 @@ static void promoteOrFetchPinned(std::vector<FlightInfo> &flights)
 
 void loop()
 {
-  improvTick(); // browser installer: must answer within 1.5 s of Connect
-
   // ── WebUI / reboot handling ────────────────────────────────────────────────
   g_webUI.handle();
 
@@ -429,14 +435,12 @@ void loop()
     // else: fetch returned nothing but we still have last-good g_flights — keep showing it.
 
     // Promote or fetch the user-configured pinned flight (no-op if not set).
-    improvTick();
     g_webUI.setBusy(true, "Pinned flight");
     promoteOrFetchPinned(g_flights);
     g_webUI.setBusy(false, "");
 
     g_webUI.recordFetch(states, flights, enriched);
     // Pre-fetch / validate the map cache — returns immediately on a 24-hour cache hit.
-    improvTick();
     g_display.showFetchStatus("Map cache");
     g_webUI.setBusy(true, "Map cache");
     MapProvider::ensureMapCached(g_display.width(), g_display.height());
