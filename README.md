@@ -37,7 +37,7 @@ PlatformIO firmware for the CYD (TFT) build target of [TheFlightWall OSS](https:
 - **Runtime configuration** — location, radius, fetch interval, display timing, brightness, label colour and API credentials persisted to NVS via the dashboard; **all settings apply live with no reboot** (a separate *Reboot Device* button is retained for WiFi reset / recovery); no reflash needed
 - **WiFiManager provisioning** — captive-portal AP on first boot; credentials stored in NVS
 
-Current release: **v1.5.0** (10 October 2026) · canonical version: `FIRMWARE_VERSION` in `include/config.h`
+Current release: **v1.5.1** (11 October 2026) · canonical version: `FIRMWARE_VERSION` in `include/config.h`
 
 > ![Hero shot of CYD running FlightWall](images/hero.png)
 > 
@@ -51,7 +51,7 @@ Current release: **v1.5.0** (10 October 2026) · canonical version: `FIRMWARE_VE
 latest release from the browser – no PlatformIO, no drivers to build. It needs
 desktop Chrome, Edge or Opera.
 
-1. Pick your board – 2.8″ (ESP32-2432S028R) or 3.5″ (ESP32-3248S035R).
+1. Pick your board – 2.8″ (ESP32-2432S028R) or 4.0″ (ESP32-32E, LCDwiki E32R40T).
 2. Plug it in with a USB data cable, click **Connect & install** and choose its
    port.
 3. On a new board, say yes to erasing it. When flashing finishes, choose
@@ -158,7 +158,7 @@ Fill in `include/secrets.h`:
 Then set your location in `src/config/UserConfiguration.h` (or leave the defaults and override at runtime via the WebUI), select your environment in PlatformIO, and upload:
 
 - `cyd_320x240` — ESP32-2432S028R (ILI9341, standard CYD)
-- `cyd_480x320` — ESP32-3248S035R (ST7796, larger CYD)
+- `cyd_480x320` — 4.0″ ESP32-32E / LCDwiki E32R40T (ST7796, 480×320)
 
 On first boot the device opens an AP named **FlightWall-Setup** — connect from any device and enter your WiFi credentials.
 
@@ -385,12 +385,13 @@ Retail prices sit between **US $7 and US $25** depending on screen size and sell
 
 ### Common board variants
 
-The yellow PCB now spans a whole family of screen sizes and controllers. The two targeted by this firmware are marked **★**:
+The yellow PCB now spans a whole family of screen sizes and controllers, and other makers (such as LCDwiki) sell compatible ESP32 + SPI TFT boards. The two targeted by this firmware are marked **★**:
 
-| Sunton SKU              | Screen          | Resolution | Driver         | Touch       | USB     | Notes                                  |
+| SKU                     | Screen          | Resolution | Driver         | Touch       | USB     | Notes                                  |
 |:------------------------|:----------------|:-----------|:---------------|:------------|:--------|:---------------------------------------|
 | **ESP32-2432S028R** ★   | 2.8″ SPI TFT    | 320 × 240  | ILI9341        | Resistive (XPT2046) | Micro-USB | The original CYD; the "R" suffix means resistive touch. A "C" suffix variant (`-028C`) uses capacitive touch and a slightly different pinout. |
-| **ESP32-3248S035R** ★   | 3.5″ SPI TFT    | 480 × 320  | ST7796 *or* ILI9488 | Resistive (XPT2046) | Micro-USB or USB-C | Two driver chips ship under the same SKU — check yours; this firmware default-builds for ST7796 (`-DST7796_DRIVER=1`). |
+| **E32R40T** (ESP32-32E) ★ | 4.0″ SPI TFT  | 480 × 320  | ST7796         | Resistive (XPT2046) | USB-C   | LCDwiki board, not Sunton. Built with `-DST7796_DRIVER=1`, backlight on GPIO 27. RGB LED red is GPIO 22 (green 16, blue 17). |
+| ESP32-3248S035R         | 3.5″ SPI TFT    | 480 × 320  | ST7796 *or* ILI9488 | Resistive (XPT2046) | Micro-USB or USB-C | Not a supported target and untested; two driver chips ship under this SKU. |
 | ESP32-2432S028          | 2.8″ SPI TFT    | 320 × 240  | ILI9341        | None        | Micro-USB | Touch-less variant.                    |
 | ESP32-4827S043          | 4.3″ Parallel   | 480 × 272  | RGB parallel   | Capacitive  | USB-C   | Higher pin-count; needs PSRAM.         |
 | ESP32-8048S043          | 4.3″ Parallel   | 800 × 480  | RGB parallel   | Capacitive  | USB-C   | Requires ESP32-S3 + PSRAM variants.    |
@@ -416,9 +417,9 @@ Several community-designed enclosures are well-suited to a flight-wall mounting:
 
 - **[FlightWall ESP32 2.8″ CYD enclosure](https://www.thingiverse.com/thing:6440252)** on Thingiverse — purpose-designed for the 320 × 240 CYD running flight tracking firmware; tidy front bezel and rear cable relief.
 - **[CYD 2.8″ Desk Stand](https://www.thingiverse.com/thing:6427338)** and many other variants searchable as `Cheap Yellow Display` on [Thingiverse](https://www.thingiverse.com/search?q=cheap+yellow+display) and [Printables](https://www.printables.com/search/models?q=cheap+yellow+display).
-- **MakerWorld**, **Cults3D** and **Thangs** carry community remixes for the 3.5″ and larger variants.
+- **MakerWorld**, **Cults3D** and **Thangs** carry community remixes for the larger variants.
 
-For the 480 × 320 (`ESP32-3248S035R`) target, search specifically for `ESP32-3248` to avoid 2.8″ enclosures that don't match the larger bezel.
+For the 480 × 320 4.0″ target, search specifically for `E32R40T` or `ESP32-32E 4.0` to avoid 2.8″ and 3.5″ enclosures that don't match its bezel.
 
 ### Community resources
 
@@ -435,7 +436,7 @@ These come up frequently in the community and are worth knowing before you start
 
 - **MISO (GPIO 12) is unwired on some board revisions.** TFT framebuffer readback (`tft.readPixel`, `tft.readRectRGB`) requires MISO. This firmware's `GET /api/screenshot` endpoint depends on it; if you get all-white screenshots, your board variant likely lacks the MISO trace.
 - **GPIO 12 is an ESP32 strapping pin** (MTDI). Using it as MISO is normally safe — the ILI9341 tri-states MISO when CS is high — but if your board has a strong pull-up on the MISO line, the chip can fail to boot. Symptom: bootloop after enabling `-DTFT_MISO=12`.
-- **Touch SPI is a separate bus** (XPT2046 on GPIO 33 CS) running at a different clock rate (typically 2.5 MHz) than the display SPI. Don't try to share buses.
+- **Touch SPI is a separate bus on the 2.8″ board** (XPT2046 on GPIO 33 CS) running at a different clock rate (typically 2.5 MHz) than the display SPI. Don't try to share buses. Touch is unused by this firmware; check the 4.0″ board's own pinout before adding it there.
 - **The microSD slot shares SPI with the display.** Card initialisation must happen after the display is set up, with explicit CS management on GPIO 5.
 - **`GPIO 0` (boot) shares the on-board "BOOT" button** with the screen backlight on some revisions — pressing BOOT for entry into flash mode can briefly flicker the screen.
 - **USB connector type is not a reliable revision indicator.** Both micro-USB and USB-C versions of the same SKU exist; the silicon and PCB layout are the determining factors.
@@ -516,11 +517,11 @@ Before touching any code you need to confirm which CYD you have, because the two
 | Your board | Silk-screen on PCB | Target to use |
 |:-----------|:-------------------|:--------------|
 | 2.8″ 320×240 (standard CYD) | `ESP32-2432S028R` | `cyd_320x240` |
-| 3.5″ 480×320 (larger CYD)   | `ESP32-3248S035R` | `cyd_480x320` |
+| 4.0″ 480×320 (larger board) | `ESP32-32E` (LCDwiki E32R40T) | `cyd_480x320` |
 
 Check the white silk-screen text printed on the back of the PCB. If you are unsure, see [Appendix A — Common board variants](#common-board-variants) for photos and a comparison table.
 
-> ⚠ If you have the 3.5″ board, verify which display driver chip is fitted — two variants ship under the same SKU (ST7796 and ILI9488). This firmware builds for ST7796 by default. Check yours against [witnessmenow's variant table](https://github.com/witnessmenow/ESP32-Cheap-Yellow-Display#variants).
+> ⚠ The 3.5″ ESP32-3248S035R is **not** a supported target. The `cyd_480x320` build is for the 4.0″ ESP32-32E (ST7796, backlight GPIO 27); confirm your board against the [LCDwiki 4.0″ ESP32-32E page](https://www.lcdwiki.com/4.0inch_ESP32-32E_Display) before flashing.
 
 ---
 
@@ -667,7 +668,7 @@ In VS Code, look at the blue status bar at the bottom of the window. You will se
 Click that section (or click the PlatformIO icon in the left sidebar and expand **PROJECT TASKS**) and select the correct environment for your board:
 
 - **`cyd_320x240`** — for the ESP32-2432S028R (2.8″, 320×240, ILI9341)
-- **`cyd_480x320`** — for the ESP32-3248S035R (3.5″, 480×320, ST7796)
+- **`cyd_480x320`** — for the 4.0″ ESP32-32E / LCDwiki E32R40T (480×320, ST7796)
 
 To build without uploading (a good first check), click the **Build** tick-mark icon in the PlatformIO toolbar at the bottom of VS Code, or run from the terminal:
 
@@ -698,13 +699,13 @@ If the build fails, the most common causes are:
 
 ### Step 11 — Connect the CYD and upload firmware
 
-1. Connect the CYD to your computer using its USB cable (Micro-USB for the 2432S028R; Micro-USB or USB-C for the 3248S035R depending on revision).
+1. Connect the CYD to your computer using its USB cable (Micro-USB for the 2.8″ 2432S028R; USB-C for the 4.0″ ESP32-32E).
 2. The device should be recognised by your OS. Check:
    - **macOS/Linux:** `ls /dev/tty.*` or `ls /dev/ttyUSB*` — you should see a new entry such as `/dev/tty.usbserial-0001` (macOS) or `/dev/ttyUSB0` (Linux).
    - **Windows:** Open Device Manager and look under **Ports (COM & LPT)** for a new `COM` port (e.g. `COM5`).
 3. If no port appears, install the USB-to-serial driver for your board:
    - **CP2102** (most 2432S028R boards): <https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers>
-   - **CH340** (some boards): <https://www.wch-ic.com/downloads/CH341SER_EXE.html>
+   - **CH340** (the 4.0″ ESP32-32E and some 2.8″ boards): <https://www.wch-ic.com/downloads/CH341SER_EXE.html>
    - After installing, unplug and replug the CYD.
 4. Click the **Upload** arrow icon in the PlatformIO toolbar, or run:
 

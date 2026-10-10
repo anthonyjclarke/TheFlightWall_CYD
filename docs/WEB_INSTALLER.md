@@ -13,7 +13,7 @@ file records what is specific to this project and its hardware test results.
 |:--------------------|:-----------------------------------------------|
 | `PROJECT_NAME`      | `TheFlightWall_CYD` (frozen)                   |
 | Envs / boards       | `cyd_320x240` – 2.8″ ESP32-2432S028R           |
-|                     | `cyd_480x320` – 3.5″ ESP32-3248S035R           |
+|                     | `cyd_480x320` – 4.0″ ESP32-32E (E32R40T)       |
 | Version header      | `include/config.h` (`FW_VERSION_STR` aliases)  |
 | Platform            | `espressif32@6.12.0` (arduino-esp32 2.0.17)    |
 | Partitions          | `partitions_custom.csv`, app slot `0x1C0000`   |
@@ -58,7 +58,7 @@ settings, because the partition table is unchanged.
 | Build                                 | `firmware.bin`             |
 |:--------------------------------------|:---------------------------|
 | 1.5.0-dev baseline, 6.12.0 pinned     | 1,264,448 B / 1,271,152 B  |
-| 1.5.0-dev CI (`47e83c2`), 2.8″ / 3.5″ | 1,275,280 B / 1,281,904 B  |
+| 1.5.0-dev CI (`47e83c2`), 2.8″ / 4.0″ | 1,275,280 B / 1,281,904 B  |
 
 Both are about 70 % of the 1,835,008 B slot. The unpinned platform resolved
 to a pioarduino (arduino-esp32 3.x) build that no longer compiles.
@@ -100,6 +100,35 @@ Boot log (after the dialog was closed):
 The Improv device name ends in `CBB0`, from the Espressif OUI rather than the
 MAC tail. That comes from the shared `improv_setup.cpp` and is cosmetic.
 
+## Release check – Update from the live page (case 2)
+
+**Passed 10-10-2026** on the same board (MAC `b0:cb:d8:da:ae:8c`), live page
+<https://anthonyjclarke.github.io/TheFlightWall_CYD/> serving v1.5.0 (tag run
+38028710087). The release has both boards' `*-firmware.bin` and
+`*-merged.bin` plus `SHA256SUMS.txt`; every manifest lists four parts.
+
+1. The board ran the `1.5.0-dev` preview from the smoke test. Brightness was
+   set from 200 to 150 through `POST /api/config` as a marker.
+2. Connect on the live page offered **Update TheFlightWall_CYD**, with no
+   erase question, and the Update completed.
+3. After the Update the boot log shows `v1.5.0`, `Running from app0` and
+   `bright=150`. WiFi rejoined from saved credentials and NTP synced.
+   `/api/config` still reports brightness 150 and the dashboard title reads
+   `v1.5.0`.
+
+## 4.0″ board – install from the live page (case 1)
+
+**Passed 11-10-2026** – 4.0″ ESP32-32E (LCDwiki E32R40T), ESP32-D0WD-V3
+rev 3.1, MAC `a4:f0:0f:68:95:5c`, installed from the live v1.5.0 page. This
+board was listed as a 3.5″ ESP32-3248S035R until 1.5.1; the image and env
+(`cyd_480x320`) are unchanged.
+
+The boot log shows `v1.5.0`, `Running from app0`, `CYDDisplay init: 480x320
+px`, WiFi joined (`192.168.1.82`) and NTP synced, with no crash. Settings
+were at factory defaults and there was no splash, as on a fresh install; the
+erase itself wasn't separately confirmed. The Improv name is
+`FlightWall-F0A4`.
+
 ---
 
 ## Tests owed
@@ -107,8 +136,8 @@ MAC tail. That comes from the shared `improv_setup.cpp` and is cosmetic.
 Smoke-tested only. Run these on the next real work on this project, or before
 the next release, and tick them off with date and board MAC.
 
-- [ ] Case 1 – fresh install, erased, on the 3.5″ ESP32-3248S035R
-- [ ] Case 2 – Update on a provisioned board (settings kept)
+- [x] Case 1 – fresh install on the 4.0″ ESP32-32E (E32R40T) – 11-10-2026, `a4:f0:0f:68:95:5c`
+- [x] Case 2 – Update on a provisioned board (settings kept) – 10-10-2026, `b0:cb:d8:da:ae:8c`
 - [x] Case 3 – Update from `app1` – not applicable, no OTA
-- [ ] Case 4 – wrong board image, then reinstall (2.8″ ↔ 3.5″)
+- [ ] Case 4 – wrong board image, then reinstall (2.8″ ↔ 4.0″)
 - [ ] Keys entered in the dashboard: OpenSky fetch, AeroAPI, Maps background
