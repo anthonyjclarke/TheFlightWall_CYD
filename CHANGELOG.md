@@ -8,10 +8,6 @@ Outstanding features and code optimisations are tracked separately in [TODO.md](
 
 Prioritised by impact vs. complexity. Items are ordered — start at the top.
 
-### Fixed
-
-- **Second board corrected to 4.0″** — the `cyd_480x320` target is the 4.0″ ESP32-32E (LCDwiki E32R40T, ST7796), not the 3.5″ ESP32-3248S035R. Installer label and hint, `platformio.ini` comments, README, `CLAUDE.md`, `docs/WEB_INSTALLER.md` and `TODO.md` now say so. Env name, build flags and installer image are unchanged. Release entries below that name the ESP32-3248S035R are left as written.
-
 ### Planned
 
 - **[P1] Ambient light auto-brightness (LDR)** — the CYD has a light-dependent resistor on GPIO 34 (ADC input-only). Sample it on a 5 s `millis()` interval, apply a 5-sample rolling average, and map the result to the backlight brightness range via `CYDDisplay::setBrightness()`. No user configuration required for basic operation; optionally expose min/max brightness bounds in the WebUI Device Configuration panel and persist to NVS. This replaces the manual brightness slider as the primary control at runtime (slider becomes the max-brightness cap). Completely non-blocking; all arithmetic fits in one file (`CYDDisplay.cpp` or `main.cpp`).
@@ -23,6 +19,18 @@ Prioritised by impact vs. complexity. Items are ordered — start at the top.
 - **[P4] OTA firmware update via WebUI** — add a `POST /api/ota` route accepting a multipart `application/octet-stream` .bin upload. Use the Arduino `Update` library (`Update.begin()` / `Update.write()` / `Update.end()`). Stream progress percentage back via a second `GET /api/ota/progress` route polled by the WebUI. Show progress in the TFT status bar (`showFetchStatus("OTA 42%")`). On success reboot automatically; on failure report the `Update.errorString()` in the WebUI and log with `DBG_ERROR`. Removes the need for a USB cable for future firmware updates once the device is installed.
 
 - **[P5] RGB LED flight notifications** — the CYD's RGB LED (active LOW; red GPIO 4 on the 2.8″, GPIO 22 on the 4.0″; green 16, blue 17) is wired but unused. Implement three notification events: (1) pinned flight enters radar radius — brief green pulse; (2) new enriched flight appears within radius — brief amber pulse; (3) fetch error / WiFi loss — sustained slow red blink. All events are non-blocking (state machine in `loop()`, `millis()`-timed). Expose an on/off toggle in the WebUI Device Configuration panel, persisted to NVS (`led_notify` key). LED is silenced during the title-bar splash window and always reverts to off between events.
+
+---
+
+## [1.5.1] 11-10-2026
+
+Patch release so the live installer shows the right board name. Firmware code is unchanged from 1.5.0; a board on 1.5.0 is offered a harmless **Update**.
+
+### Fixed
+- **Second board corrected to 4.0″** — the `cyd_480x320` target is the 4.0″ ESP32-32E (LCDwiki E32R40T, ST7796), not the 3.5″ ESP32-3248S035R. Installer label and hint, `platformio.ini` comments, README, `CLAUDE.md`, `docs/WEB_INSTALLER.md` and `TODO.md` now say so. Env name, build flags and installer image are unchanged. Release entries below that name the ESP32-3248S035R are left as written.
+
+### Documentation
+- `docs/WEB_INSTALLER.md` records the live-page **Update** test on the 2.8″ (case 2, settings kept) and the 4.0″ install from the live page (case 1).
 
 ---
 
