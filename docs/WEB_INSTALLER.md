@@ -129,6 +129,15 @@ were at factory defaults and there was no splash, as on a fresh install; the
 erase itself wasn't separately confirmed. The Improv name is
 `FlightWall-F0A4`.
 
+### Update to 1.5.1 on the 4.0″
+
+**Passed 11-10-2026** on the same board, from the live page serving v1.5.1
+(tag run 38070600610), which now labels it *CYD 4.0″ – ESP32-32E
+(E32R40T)*. After the Update the boot log shows `v1.5.1`, `Running from
+app0`, `480x320 px`, WiFi rejoined from saved credentials and NTP synced,
+with no crash. Its settings were still at defaults, so only WiFi showed
+that NVS was kept; the 2.8″ Update above proved settings survive.
+
 ---
 
 ## Tests owed
