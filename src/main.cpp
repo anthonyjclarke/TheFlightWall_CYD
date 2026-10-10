@@ -17,6 +17,8 @@
 #include "CYDDisplay.h"
 #include "MapProvider.h"
 #include "WebUIServer.h"
+#include "improv_setup.h"
+#include <esp_ota_ops.h>
 
 static OpenSkyFetcher    g_openSky;
 static AeroAPIFetcher    g_aeroApi;
@@ -49,11 +51,9 @@ static void initFilesystem()
 static void initDisplay()
 {
   g_display.initialize();
-  // Splash JPEG from LittleFS replaces the legacy "FlightWall" status text.
-  // If the splash is missing (LittleFS image not flashed) fall back to the
-  // text banner so the device never boots to a blank screen.
-  if (!g_display.showSplash())
-    g_display.displayMessage("FlightWall");
+  // Splash JPEG from LittleFS. If it is missing (LittleFS image not flashed,
+  // as with the web installer) showSplash() draws a "FlightWall" text banner.
+  g_display.showSplash();
 }
 
 static void initWiFi()
@@ -94,11 +94,37 @@ static void initTime()
     DBG_WARN("NTP sync timed out — flight status lines unavailable");
 }
 
+// ESP Web Tools must get an Improv reply within 1.5 s of Connect, but setup()
+// (splash hold, WiFi portal, NTP wait) and each fetch cycle (HTTPS calls of up
+// to 15 s each) block for seconds. A small task on core 0 services Improv every
+// 20 ms instead, so no other code has to tick it. Serial writes are
+// mutex-protected in the core.
+#if IMPROV_SETUP_ENABLED
+static void improvTask(void *)
+{
+  for (;;)
+  {
+    improvTick(); // restarts the device once new Improv credentials connect
+    vTaskDelay(pdMS_TO_TICKS(20));
+  }
+}
+#endif
+
+static void initImprov()
+{
+  improvBegin();
+#if IMPROV_SETUP_ENABLED
+  xTaskCreatePinnedToCore(improvTask, "improv", 4096, nullptr, 1, nullptr, 0);
+#endif
+}
+
 void setup()
 {
   Serial.begin(115200);
+  initImprov(); // before WiFi: answers the browser installer on every boot
   delay(200); // settle before initialising peripherals
   DBG_INFO("FlightWall CYD firmware v%s booting", FW_VERSION_STR);
+  DBG_INFO("Running from %s", esp_ota_get_running_partition()->label);
   RuntimeConfig::load();
   initFilesystem();
   initDisplay();

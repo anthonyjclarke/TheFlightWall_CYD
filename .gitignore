@@ -12,3 +12,6 @@ assets/branding/README.md
 
 # Auto-populated by scripts/copy_splash.py at build time
 data/splash.jpg
+
+# Local installer site – built with your secrets.h; never publish
+_site/

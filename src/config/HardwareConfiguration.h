@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include "config.h"
 
 namespace HardwareConfiguration
 {
@@ -11,5 +12,5 @@ namespace HardwareConfiguration
     static constexpr uint8_t  BL_BRIGHTNESS  = 200; // 0–255
 
     // WiFiManager captive-portal AP name (first-boot provisioning)
-    static constexpr const char *WIFI_AP_NAME = "FlightWall-Setup";
+    static constexpr const char *WIFI_AP_NAME = AP_NAME;  // include/config.h
 }

@@ -4,6 +4,46 @@ Outstanding features and code optimisations are tracked separately in [TODO.md](
 
 ---
 
+## [Unreleased] — building toward v1.5.0
+
+Prioritised by impact vs. complexity. Items are ordered — start at the top.
+
+### Planned
+
+- **[P1] Ambient light auto-brightness (LDR)** — the CYD has a light-dependent resistor on GPIO 34 (ADC input-only). Sample it on a 5 s `millis()` interval, apply a 5-sample rolling average, and map the result to the backlight brightness range via `CYDDisplay::setBrightness()`. No user configuration required for basic operation; optionally expose min/max brightness bounds in the WebUI Device Configuration panel and persist to NVS. This replaces the manual brightness slider as the primary control at runtime (slider becomes the max-brightness cap). Completely non-blocking; all arithmetic fits in one file (`CYDDisplay.cpp` or `main.cpp`).
+
+- **[P2] Touchscreen flight selection** — the XPT2046 is wired (TOUCH_CS = GPIO 33, VSPI) but unused. Implement tap-to-pin: a tap anywhere on the currently displayed flight card pins that flight (calls `RuntimeConfig::setPinnedFlightNumber()` and fires `takePendingForceFetch()`); a long-press (> 600 ms) clears the pin. The calibration matrix is already specified to be stored in NVS via `Preferences`. Debounce with `ts.tirqTouched() && ts.touched()` before reading point. No new WebUI work required — existing pin indicator and force-fetch path handle the rest. Significant quality-of-life improvement: pin a flight directly from the display without opening a browser.
+
+- **[P3] FreeRTOS fetch task — smooth display during long fetches** — the worst-case fetch cycle (10 AeroAPI enrichments + position + map cache) takes 90–150 s, during which the TFT pauses on a single card and the WebUI busy banner shows. Move the entire fetch block (`FlightDataFetcher::fetchFlights()` + `promoteOrFetchPinned()` + `MapProvider::ensureMapCached()`) to a FreeRTOS task pinned to Core 0. Protect `g_flights` with a `SemaphoreHandle_t` mutex; `CYDDisplay::displayFlights()` and `WebUIServer` take the mutex only for the pointer swap, not for rendering. `loop()` on Core 1 continues cycling cards at full speed. Add a software watchdog (`esp_task_wdt_add()`) on the fetch task so a stalled HTTPS call doesn't lock the device. This is the most architecturally significant change in the list — plan the mutex boundary carefully before implementing.
+
+- **[P4] OTA firmware update via WebUI** — add a `POST /api/ota` route accepting a multipart `application/octet-stream` .bin upload. Use the Arduino `Update` library (`Update.begin()` / `Update.write()` / `Update.end()`). Stream progress percentage back via a second `GET /api/ota/progress` route polled by the WebUI. Show progress in the TFT status bar (`showFetchStatus("OTA 42%")`). On success reboot automatically; on failure report the `Update.errorString()` in the WebUI and log with `DBG_ERROR`. Removes the need for a USB cable for future firmware updates once the device is installed.
+
+- **[P5] RGB LED flight notifications** — the CYD's RGB LED (GPIO 17/16/4, active LOW) is wired but unused. Implement three notification events: (1) pinned flight enters radar radius — brief green pulse; (2) new enriched flight appears within radius — brief amber pulse; (3) fetch error / WiFi loss — sustained slow red blink. All events are non-blocking (state machine in `loop()`, `millis()`-timed). Expose an on/off toggle in the WebUI Device Configuration panel, persisted to NVS (`led_notify` key). LED is silenced during the title-bar splash window and always reverts to off between events.
+
+---
+
+## [1.5.0] 10-10-2026
+
+### Added
+- **Browser installer** — `.github/workflows/firmware.yml` calls the shared [cyd-web-installer](https://github.com/anthonyjclarke/cyd-web-installer) workflow. Every push builds both boards; a `v*` tag on `main` publishes the release (`*-firmware.bin`, `*-merged.bin`, `SHA256SUMS.txt`) and the ESP Web Tools installer on GitHub Pages. `tools/merge_bin.py` writes the flash parts; both envs carry `custom_installer_label`.
+- **Improv-Serial, always on** — vendored `lib/ImprovWiFi` (cyd-web-installer 1.0.1) and `src/network/improv_setup.*`. The installer can set WiFi over USB and offers **Update** (no erase) on a board already running this firmware. Improv is serviced every 20 ms from a small FreeRTOS task on core 0, because `setup()` and each fetch cycle (HTTPS calls of up to 15 s) block for seconds and ESP Web Tools waits only 1.5 s for a reply.
+- Boot log line `Running from app0/app1`.
+- **Google Maps key in the web UI** — a write-only *Google Maps Key* field (with *Clear*) in Device Configuration, stored in NVS as `maps_key` and applied live. Installer images carry no `secrets.h`, so the map card background needs a user-entered key, as OpenSky and AeroAPI already did. `SECRET_MAPS_API_KEY` remains the compile-time default.
+
+### Changed
+- Platform pinned to `espressif32@6.12.0` (arduino-esp32 2.0.17); unpinned now resolves to an Arduino 3.x build that fails.
+- `FIRMWARE_VERSION`, `PROJECT_NAME`, upstream credit and `AP_NAME` live in `include/config.h`; `FW_VERSION_STR` in `Version.h` is now an alias.
+- `release.yml` replaced by `firmware.yml`. Release notes now link to this file instead of quoting it.
+
+### Fixed
+- Missing `/splash.jpg` (installer images ship no LittleFS image): the empty state no longer checks LittleFS and logs a warning on every loop pass, and a "FlightWall" text banner replaces a stale flight card.
+- Improv replies start on a new line (cyd-web-installer 1.0.1), so ESP Web Tools' line-based parser no longer drops them after serial noise on port open — Connect reliably offers **Update**.
+
+### Documentation
+- README **Install** section: browser installer steps, bring-your-own API keys (entered in the dashboard), Update vs Install for boards on 1.4.0, release assets. API setup steps now say keys go in the dashboard, with `secrets.h` as the source-build default; Appendix B warns never to publish a local build.
+- `docs/WEB_INSTALLER.md`: project specifics, RUNBOOK 5a smoke test (passed 10-10-2026 on a 2.8″) and the *Tests owed* list.
+- `CLAUDE.md`: canonical version now `FIRMWARE_VERSION` in `include/config.h`; *Web installer and releases* rules replace the old `release.yml` process.
+
 ## [1.4.0] 01-06-2026
 
 ### Added

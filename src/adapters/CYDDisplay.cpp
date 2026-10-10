@@ -808,22 +808,40 @@ void CYDDisplay::readRectRGB(int16_t x, int16_t y, int16_t w, int16_t h, uint8_t
 
 // Draws /splash.jpg from LittleFS at the origin. The per-environment splash
 // (320×240 or 480×320) is staged into the LittleFS image at build time by
-// scripts/copy_splash.py.
+// scripts/copy_splash.py. The web installer ships no LittleFS image, so a
+// missing or undecodable splash is noted once and a "FlightWall" text banner
+// stands in — still a full-screen draw, so stale flight cards are cleared.
 bool CYDDisplay::showSplash()
 {
   if (!_tft) return false;
-  if (_splashOnScreen) return true;  // idempotent — safe to call every loop tick in empty state
-  if (!LittleFS.exists("/splash.jpg"))
+  if (_splashOnScreen) return !_splashMissing;  // idempotent — safe to call every loop tick in empty state
+  bool drawn = false;
+  if (!_splashMissing)
   {
-    DBG_WARN("showSplash: /splash.jpg not present in LittleFS");
-    return false;
+    if (!LittleFS.exists("/splash.jpg"))
+    {
+      DBG_WARN("showSplash: /splash.jpg not present in LittleFS — using text banner");
+    }
+    else
+    {
+      _tft->fillScreen(UserConfiguration::COLOR_BACKGROUND);
+      JRESULT r = TJpgDec.drawFsJpg(0, 0, "/splash.jpg", LittleFS);
+      if (r == JDR_OK)
+        drawn = true;
+      else
+        DBG_ERROR("showSplash: TJpgDec.drawFsJpg failed (code=%d) — using text banner", (int)r);
+    }
+    _splashMissing = !drawn;
   }
-  _tft->fillScreen(UserConfiguration::COLOR_BACKGROUND);
-  JRESULT r = TJpgDec.drawFsJpg(0, 0, "/splash.jpg", LittleFS);
-  if (r != JDR_OK)
+  if (_splashMissing)
   {
-    DBG_ERROR("showSplash: TJpgDec.drawFsJpg failed (code=%d)", (int)r);
-    return false;
+    _tft->startWrite();
+    _tft->fillScreen(UserConfiguration::COLOR_BACKGROUND);
+    _tft->setFreeFont(F_SUB);
+    _tft->setTextDatum(MC_DATUM);
+    _tft->setTextColor(UserConfiguration::COLOR_MESSAGE, UserConfiguration::COLOR_BACKGROUND);
+    _tft->drawString("FlightWall", _w / 2, _h / 2);
+    _tft->endWrite();
   }
   // Drawing the JPEG wipes the bottom-bar pixels too, so reset the phase
   // cache so the next showFetchStatus() call repaints the bar instead of
@@ -834,8 +852,8 @@ bool CYDDisplay::showSplash()
   _lastStatusMessage = "";
   resetRenderState();
   _splashOnScreen = true;
-  DBG_INFO("showSplash: /splash.jpg drawn");
-  return true;
+  if (drawn) DBG_INFO("showSplash: /splash.jpg drawn");
+  return !_splashMissing;
 }
 
 // ── Fetch status bar ─────────────────────────────────────────────────────────

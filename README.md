@@ -37,11 +37,51 @@ PlatformIO firmware for the CYD (TFT) build target of [TheFlightWall OSS](https:
 - **Runtime configuration** — location, radius, fetch interval, display timing, brightness, label colour and API credentials persisted to NVS via the dashboard; **all settings apply live with no reboot** (a separate *Reboot Device* button is retained for WiFi reset / recovery); no reflash needed
 - **WiFiManager provisioning** — captive-portal AP on first boot; credentials stored in NVS
 
-Current release: **v1.4.0** (01 June 2026) · canonical version: `FW_VERSION_STR` in `src/config/Version.h`
+Current release: **v1.5.0** (10 October 2026) · canonical version: `FIRMWARE_VERSION` in `include/config.h`
 
 > ![Hero shot of CYD running FlightWall](images/hero.png)
 > 
 > *TheFlightWall CYD running live — enriched flight cards cycling on the ILI9341 320×240 TFT.*
+
+---
+
+## Install
+
+**[anthonyjclarke.github.io/TheFlightWall_CYD][installer]** installs the
+latest release from the browser – no PlatformIO, no drivers to build. It needs
+desktop Chrome, Edge or Opera.
+
+1. Pick your board – 2.8″ (ESP32-2432S028R) or 3.5″ (ESP32-3248S035R).
+2. Plug it in with a USB data cable, click **Connect & install** and choose its
+   port.
+3. On a new board, say yes to erasing it. When flashing finishes, choose
+   **Configure WiFi** and pick your network.
+4. **Visit device** opens the dashboard.
+
+**Bring your own API keys.** The installer image carries no credentials. In
+the dashboard's *Device Configuration*, set your location and enter your own
+keys; they are stored on the device and apply without a reboot:
+
+| Key                                  | Needed for                         |
+|:-------------------------------------|:-----------------------------------|
+| OpenSky client ID + secret           | Required – live aircraft positions |
+| FlightAware AeroAPI key              | Optional – routes, airline, timing |
+| Google Maps Static API key           | Optional – map card background     |
+
+Sign-up steps for each are under [API services](#api-services).
+
+A board already running this firmware is recognised and offered **Update**,
+which keeps its settings and WiFi. Boards on v1.4.0 or older predate that
+check and are offered **Install**: answer **No** to erasing and they keep
+their settings too, because the partition table hasn't changed. Each
+[release][releases] also carries the images for flashing by hand.
+`*-firmware.bin` is the app image only. `*-merged.bin` is a clean install at
+`0x0` with esptool, and it **erases settings and WiFi**. The optional splash
+image isn't part of the installer; without it the screen shows a FlightWall
+text banner.
+
+[installer]: https://anthonyjclarke.github.io/TheFlightWall_CYD/
+[releases]: https://github.com/anthonyjclarke/TheFlightWall_CYD/releases
 
 ---
 
@@ -236,6 +276,8 @@ The firmware uses five external services. Three require credentials; two are fre
 
 Full setup details, pricing, runtime behaviour, hints and tips: see [README-API.md](README-API.md).
 
+Enter each key in the dashboard's *Device Configuration* (stored in NVS, write-only, applied live). When building from source, `include/secrets.h` can also supply them as compile-time defaults; a key saved in the dashboard takes precedence.
+
 Never commit `include/secrets.h`. It is intentionally gitignored; commit only `include/secrets.h.template`.
 
 ### OpenSky Network — essential setup
@@ -244,7 +286,7 @@ OpenSky uses OAuth2 client credentials (not username/password) for the REST API.
 
 1. Sign in at <https://opensky-network.org/my-opensky/account>.
 2. Find the **API Client** card and create a new client.
-3. Copy `client_id` and `client_secret` into `include/secrets.h`:
+3. Enter `client_id` and `client_secret` in the dashboard, or for a source build put them in `include/secrets.h`:
 
 ```cpp
 #define SECRET_OPENSKY_CLIENT_ID     "xxxxxxxx-api-client"
@@ -259,7 +301,7 @@ AeroAPI enriches each callsign with route, operator and timing data. Leaving the
 
 1. Sign up and select a tier at <https://www.flightaware.com/commercial/aeroapi>.
 2. Copy your key from the developer portal at <https://www.flightaware.com/aeroapi/portal/>.
-3. Add it to `include/secrets.h`:
+3. Enter it in the dashboard, or for a source build add it to `include/secrets.h`:
 
 ```cpp
 #define SECRET_AEROAPI_KEY "your-aeroapi-key"
@@ -274,7 +316,7 @@ The map card downloads a single road-map JPEG once every 24 hours (or when locat
 1. Open Google Cloud Console: <https://console.cloud.google.com/>.
 2. Enable **Maps Static API** under **APIs & Services → Library**.
 3. Create an API key under **APIs & Services → Credentials**.
-4. Add it to `include/secrets.h`:
+4. Enter it in the dashboard's **Google Maps Key** field, or for a source build add it to `include/secrets.h`:
 
 ```cpp
 #define SECRET_MAPS_API_KEY "your-google-maps-static-api-key"
@@ -406,7 +448,9 @@ The CYD acronym and the bulk of the community knowledge base are the work of **B
 
 ## Appendix B — Complete build and flash guide
 
-This guide takes you from a bare computer and a freshly-purchased CYD to a running FlightWall device. Follow the steps in order; each section builds on the last. Estimated time from scratch: 30–60 minutes, depending on download speed.
+This guide takes you from a bare computer and a freshly-purchased CYD to a running FlightWall device. Follow the steps in order; each section builds on the last. Estimated time from scratch: 30–60 minutes, depending on download speed. If you only want to run the firmware, the browser [Install](#install) is quicker.
+
+> **Never publish a local build.** A build from source compiles your `include/secrets.h` into the image. Release images come only from CI on a `v*` tag, which builds without it.
 
 ---
 

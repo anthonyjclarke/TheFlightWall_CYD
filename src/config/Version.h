@@ -1,9 +1,11 @@
 #pragma once
 
-// ─── Single source of truth for the firmware release version ─────────────────
+// ─── Firmware version alias ──────────────────────────────────────────────────
 //
-// Bump FW_VERSION_STR HERE and everything in the C++ codebase that displays
-// or logs the version picks it up automatically:
+// The version itself lives in include/config.h as FIRMWARE_VERSION (the
+// cyd-web-installer CI reads it there). FW_VERSION_STR is kept as an alias so
+// existing code is unchanged. Bump FIRMWARE_VERSION and everything in the C++
+// codebase that displays or logs the version picks it up automatically:
 //
 //   • WebUI HTML <title>   ─ src/adapters/WebUIServer.cpp
 //   • WebUI brand badge    ─ src/adapters/WebUIServer.cpp
@@ -26,10 +28,9 @@
 //   • CLAUDE.md           "Current dev version" line
 //   • CHANGELOG.md        [Unreleased] / [X.Y.Z] heading + entries
 //
-// Suffix conventions (matches the rest of the project):
-//   • "1.3.0-dev"   work-in-progress on the dev branch
-//   • "1.3.0-rc1"   release candidate
-//   • "1.3.0"       tagged release on main
+// Suffix conventions: see include/config.h.
 // ─────────────────────────────────────────────────────────────────────────────
 
-#define FW_VERSION_STR "1.4.0"
+#include "config.h"
+
+#define FW_VERSION_STR FIRMWARE_VERSION

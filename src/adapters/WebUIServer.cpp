@@ -106,6 +106,7 @@ footer h4{color:var(--ink);font-size:11px;letter-spacing:.15em;text-transform:up
   <div class="field"><label>OpenSky Client ID <span id="oskyIdState"></span></label><input type="password" id="osky_id" placeholder="Leave blank to retain"><div class="cred-note"><input type="checkbox" id="clear_osky" style="width:auto"> Clear OpenSky credentials</div></div>
   <div class="field"><label>OpenSky Secret <span id="oskyState"></span></label><input type="password" id="osky_sec" placeholder="Leave blank to retain"></div>
   <div class="field"><label>AeroAPI Key <span id="aeroState"></span></label><input type="password" id="aero_key" placeholder="Leave blank to retain"><div class="cred-note"><input type="checkbox" id="clear_aero" style="width:auto"> Clear AeroAPI key</div></div>
+  <div class="field"><label>Google Maps Key <span id="mapsState"></span></label><input type="password" id="maps_key" placeholder="Leave blank to retain"><div class="cred-note"><input type="checkbox" id="clear_maps" style="width:auto"> Clear Google Maps key</div></div>
  </div>
  <div class="actions"><span class="message" id="msg">Credential values are never returned to this page.</span><div style="display:flex;gap:10px"><button id="mapfetch" style="background:var(--panel2);border:1px solid var(--line);color:var(--ink-dim);font-weight:500;border-radius:9px;padding:11px 18px;cursor:pointer" onmouseover="this.style.borderColor='var(--amber)';this.style.color='var(--amber)'" onmouseout="this.style.borderColor='var(--line)';this.style.color='var(--ink-dim)'" onclick="fetchMap(this)">Fetch Map</button><button id="reboot" style="background:var(--panel2);border:1px solid var(--line);color:var(--ink-dim);font-weight:500;border-radius:9px;padding:11px 18px;cursor:pointer" onmouseover="this.style.borderColor='#e0533a';this.style.color='#e0533a'" onmouseout="this.style.borderColor='var(--line)';this.style.color='var(--ink-dim)'" onclick="rebootDevice()" title="Reboot the device — needed only for WiFi reset or recovery">Reboot Device</button><button id="save" onclick="saveConfig()">Save</button></div></div>
 </div></section>
@@ -199,12 +200,13 @@ async function poll(){
  }catch(e){clearTimeout(t);updateBusyBanner(true,e.name==='AbortError'?'Awaiting response…':'');$('connection').textContent='Device busy';}
 }
 async function loadConfig(){
- try{const d=await(await fetch('/api/config',{cache:'no-store'})).json();['lat','lon','brightness','fetch_sec','cycle_sec','map_sec'].forEach(k=>$(k).value=d[k]??'');$('radius').value=d.radius_km??'';if(d.label_color)$('labelColor').value=d.label_color;$('pinned_flight').value=d.pinned_flight??'';$('oskyIdState').textContent=d.opensky_configured?'configured':'';$('oskyState').textContent=d.opensky_configured?'configured':'';$('aeroState').textContent=d.aero_configured?'configured':'';configLoaded=true;updateMapOverlay();}catch(e){$('msg').textContent='Configuration unavailable';}
+ try{const d=await(await fetch('/api/config',{cache:'no-store'})).json();['lat','lon','brightness','fetch_sec','cycle_sec','map_sec'].forEach(k=>$(k).value=d[k]??'');$('radius').value=d.radius_km??'';if(d.label_color)$('labelColor').value=d.label_color;$('pinned_flight').value=d.pinned_flight??'';$('oskyIdState').textContent=d.opensky_configured?'configured':'';$('oskyState').textContent=d.opensky_configured?'configured':'';$('aeroState').textContent=d.aero_configured?'configured':'';$('mapsState').textContent=d.maps_configured?'configured':'';configLoaded=true;updateMapOverlay();}catch(e){$('msg').textContent='Configuration unavailable';}
 }
 async function saveConfig(){
  const p={lat:parseFloat($('lat').value),lon:parseFloat($('lon').value),radius_km:Math.max(1,parseFloat($('radius').value)),fetch_sec:Math.max(10,parseInt($('fetch_sec').value)),cycle_sec:Math.max(1,parseInt($('cycle_sec').value)),map_sec:Math.max(5,parseInt($('map_sec').value)),brightness:Math.min(255,Math.max(0,parseInt($('brightness').value))),label_color:$('labelColor').value};
  if($('clear_osky').checked){p.osky_id='';p.osky_sec='';}else{if($('osky_id').value)p.osky_id=$('osky_id').value;if($('osky_sec').value)p.osky_sec=$('osky_sec').value;}
  if($('clear_aero').checked)p.aero_key=''; else if($('aero_key').value)p.aero_key=$('aero_key').value;
+ if($('clear_maps').checked)p.maps_key=''; else if($('maps_key').value)p.maps_key=$('maps_key').value;
  $('save').disabled=true;try{const r=await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});$('msg').textContent=r.ok?'Settings applied — no reboot needed.':'Save failed.';}catch(e){$('msg').textContent='Save failed: '+e;}$('save').disabled=false;
 }
 async function rebootDevice(){if(!confirm('Reboot the device now?'))return;$('reboot').disabled=true;try{await fetch('/api/reboot',{method:'POST'});$('msg').textContent='Rebooting — reconnect in ~15 s.';}catch(e){$('msg').textContent='Reboot request failed: '+e;$('reboot').disabled=false;}}
@@ -692,6 +694,7 @@ void WebUIServer::onGetConfig()
   doc["opensky_configured"] =
       RuntimeConfig::openskyClientId().length() && RuntimeConfig::openskyClientSecret().length();
   doc["aero_configured"]   = RuntimeConfig::aeroApiKey().length() > 0;
+  doc["maps_configured"]   = RuntimeConfig::mapsApiKey().length() > 0;
   doc["pinned_flight"]     = RuntimeConfig::pinnedFlightNumber();
 
   String out;
@@ -741,6 +744,7 @@ void WebUIServer::onPostConfig()
   if (doc.containsKey("osky_id")) RuntimeConfig::setOpenskyClientId(doc["osky_id"].as<String>());
   if (doc.containsKey("osky_sec")) RuntimeConfig::setOpenskyClientSecret(doc["osky_sec"].as<String>());
   if (doc.containsKey("aero_key")) RuntimeConfig::setAeroApiKey(doc["aero_key"].as<String>());
+  if (doc.containsKey("maps_key")) RuntimeConfig::setMapsApiKey(doc["maps_key"].as<String>());
   if (doc.containsKey("pinned_flight"))
   {
     String pf = doc["pinned_flight"].as<String>();
